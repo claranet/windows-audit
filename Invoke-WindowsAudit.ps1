@@ -52,17 +52,16 @@ Param(
 $ErrorActionPreference = "Stop";
 
 # Output object for return
-$Output = New-Object PSCustomObject;
+$Output = @();
 
 # Scriptblock to execute imported from file
-$ScriptBlock = [scriptblock]::Create($(Get-Content ".\audit-scriptblock.ps1"));
+[ScriptBlock]$ScriptBlock = [ScriptBlock]::Create($(Get-Content ".\audit-scriptblock.ps1" | Out-String));
 
 # Loop to execute on targeted computers
 ForEach ($Computer in $Computers) {
     
     # Ok we need to check if we're using a non-standard port
     if ($Computer.Contains(":")) {
-        
         # Split up for params
         $Hostname = $Computer.Split(":")[0];
         $Port     = $Computer.Split(":")[1];
@@ -76,12 +75,8 @@ ForEach ($Computer in $Computers) {
             # Execute the command using the default credential
             $HostInformation = Invoke-Command -ComputerName $Hostname -Port $Port -ScriptBlock $ScriptBlock;
         }
-
-        # And add the output
-        $Output | Add-Member -MemberType NoteProperty -Name $Computer -Value $HostInformation;
     }
     else {
-        
         # We need to check and see if the user supplied credentials and act accordingly
         if ($PSCredential) {
             # Execute the command supplying the credential 
@@ -91,10 +86,13 @@ ForEach ($Computer in $Computers) {
             # Execute the command using the default credential
             $HostInformation = Invoke-Command -ComputerName $Hostname -ScriptBlock $ScriptBlock;
         }
+    }
 
-        # And add the output
-        $Output | Add-Member -MemberType NoteProperty -Name $Computer -Value $HostInformation;
-    }   
+    # And add the output
+    $Output += New-Object PSCustomObject -Property @{
+        Hostname = $Computer
+        HostInfo = $HostInformation
+    };
 }
 
 # Return

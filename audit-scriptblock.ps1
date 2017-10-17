@@ -30,11 +30,47 @@ Function Add-HostInformation {
 
 #---------[ Main() ]---------
 
+# System Information
+$SystemInfo = Get-WMIObject -Class "Win32_ComputerSystem";
+
+# Check to see what type of machine we're running
+Switch ($SystemInfo.Model) {
+    "Virtual Machine" {
+        $IsVirtualMachine = $True;
+        $MachineType      = "Hyper-V Virtual Machine";
+    }
+    "VMware Virtual Platform" {
+        $IsVirtualMachine = $True;
+        $MachineType      = "VMWare Virtual Machine";
+    }
+    "VirtualBox" {
+        $IsVirtualMachine = $True;
+        $MachineType      = "Oracle VM VirtualBox";
+    }
+    default {
+        $IsVirtualMachine = $False;
+        $MachineType      = $SystemInfo.Model;
+    }
+}
+
+# And add to the collection
+Add-HostInformation -Name SystemInfo -Value $(New-Object PSCustomObject -Property @{
+    Hostname         = $env:COMPUTERNAME
+    IsVirtualMachine = $IsVirtualMachine
+    MachineType      = $MachineType
+    SystemInfo       = $SystemInfo
+})
+
 # Compute
 Add-HostInformation -Name Compute -Value $(Get-WMIObject -Class "Win32_Processor");
 
-# Memory
-Add-HostInformation -Name Memory -Value $(Get-WMIObject -Class "Win32_PhysicalMemory");
+# Memory, we need to do a check here as Win32_PhysicalMemory is $Null on virtual machines
+if ($IsVirtualMachine) {
+    Add-HostInformation -Name Memory -Value "TODO!";
+}
+else {
+    Add-HostInformation -Name Memory -Value $(Get-WMIObject -Class "Win32_PhysicalMemory");
+}
 
 # Storage
 Add-HostInformation -Name Storage -Value $(New-Object PSCustomObject -Property @{
@@ -66,10 +102,9 @@ Add-HostInformation -Name Applications -Value $(New-Object PSCustomObject -Prope
     x64 = $(Get-ChildItem "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*")
 })
 
+# Import the servermanager module for the Get-WindowsFeature cmdlet
+Import-Module ServerManager;
 Add-HostInformation -Name RolesAndFeatures -Value $(Get-WindowsFeature);
-
-# System information
-Add-HostInformation -Name SystemInformation -Value $(Invoke-Expression "systeminfo");
 
 #---------[ Return ]---------
 return $HostInformation;
