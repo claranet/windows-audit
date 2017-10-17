@@ -8,92 +8,94 @@
     returning it in a format that can be manipulated to produce an output report
     indicating the machine's current Application/Hardware/Configuration status.
 
-    .PARAMETER NoneForNow
-    (Paramdescription)
+    .PARAMETER Computers [String[]]
+    String array of computers to run this script on. Defaults to this computer
+    if not specified. If the computer value is a [host:port] or [ip:port] combination
+    the specified port will be used for WinRM.
+
+    .PARAMETER PSCredential [PSCredential]
+    PSCredential that will be used for WinRM communications. Must be valid
+    on the machines you're trying to connect to.
     
     .EXAMPLE
-    (Example)
+    .\Invoke-WindowsAudit.ps1
+    This will execute the script on the current computer using the current user's
+    identity.
+
+    .\Invoke-WindowsAudit.ps1 -Computers "dev-test-01","dev-test-02" -PSCredential $MyPSCredential
+    This will execute the script on both of the named computers, using the specified
+    PSCredential from the $MyPSCredential variable.
+
+    .\Invoke-WindowsAudit.ps1 -Computers "dev-test-01","192.168.0.10:55876","dev-test-06:443"
+    This will execute the script on all three of the named computers, using the
+    specified ports for WinRM on latter two and the current user's identity.
 
     #requires -version 2
 #>
 
 [CmdletBinding()]
 Param( 
-    #
+    # List of computers to execute this script on, defaults to this computer if not specified
+    [Parameter(Mandatory=$False)]
+    [ValidateNotNullOrEmpty()]
+    [String[]]$Computers = $env:COMPUTERNAME,
+
+    # PSCredential that will be used for WinRM to connect to the target machines
+    [Parameter(Mandatory=$False)]
+    [ValidateNotNullOrEmpty()]
+    [PSCredential]$PSCredential
 )
 
-#---------[ Declarations ]---------
+#---------[ Global Declarations ]---------
 
 # EAP to stop so we can trap errors in catch blocks
 $ErrorActionPreference = "Stop";
 
-# Get our return object sorted out
-$HostInformation = New-Object PSCustomObject;
+# Output object for return
+$Output = New-Object PSCustomObject;
 
-#---------[ Functions ]---------
+# Scriptblock to execute imported from file
+$ScriptBlock = [scriptblock]::Create($(Get-Content ".\exec.scriptblock.ps1"));
 
-# Easy add-member function
-Function Add-HostInformation {
-    [Cmdletbinding()]
-    Param(
-        # The name of the property we're adding
-        [Parameter(Mandatory=$True)]
-        [ValidateNotNullOrEmpty()]
-        [String]$Name,
+# Loop to execute on targeted computers
+ForEach ($Computer in $Computers) {
+    
+    # Ok we need to check if we're using a non-standard port
+    if ($Computer.Contains(":")) {
+        
+        # Split up for params
+        $Hostname = $Computer.Split(":")[0];
+        $Port     = $Computer.Split(":")[1];
 
-        # The value of the property we're adding
-        [Parameter(Mandatory=$True)]
-        [ValidateNotNullOrEmpty()]
-        [Object]$Value
-    )
+        # We need to check and see if the user supplied credentials and act accordingly
+        if ($PSCredential) {
+            # Execute the command supplying the credential 
+            $HostInformation = Invoke-Command -ComputerName $Hostname -Port $Port -ScriptBlock $ScriptBlock -Credential $PSCredential;
+        }
+        else {
+            # Execute the command using the default credential
+            $HostInformation = Invoke-Command -ComputerName $Hostname -Port $Port -ScriptBlock $ScriptBlock;
+        }
 
-    # Add the property to HostInformation
-    $HostInformation | Add-Member -MemberType NoteProperty -Name $Name -Value $Value;
+        # And add the output
+        $Output | Add-Member -MemberType NoteProperty -Name $Computer -Value $HostInformation;
+    }
+    else {
+        
+        # We need to check and see if the user supplied credentials and act accordingly
+        if ($PSCredential) {
+            # Execute the command supplying the credential 
+            $HostInformation = Invoke-Command -ComputerName $Hostname -ScriptBlock $ScriptBlock -Credential $PSCredential;
+        }
+        else {
+            # Execute the command using the default credential
+            $HostInformation = Invoke-Command -ComputerName $Hostname -ScriptBlock $ScriptBlock;
+        }
 
+        # And add the output
+        $Output | Add-Member -MemberType NoteProperty -Name $Computer -Value $HostInformation;
+    }   
 }
 
-#---------[ Main() ]---------
-
-# Compute
-Add-HostInformation -Name Compute -Value $(Get-WMIObject -Class "Win32_Processor");
-
-# Memory
-Add-HostInformation -Name Memory -Value $(Get-WMIObject -Class "Win32_PhysicalMemory");
-
-# Storage
-Add-HostInformation -Name Storage -Value $(New-Object PSCustomObject -Property @{
-    PhysicalDisks = $(Get-WMIObject -Class "Win32_DiskDrive")
-    LogicalDisks  = $(Get-WMIObject -Class "Win32_LogicalDisk")
-    Volumes       = $(Get-WMIObject -Class "Win32_Volume")
-    SharedFolders = "TODO"
-    MountedDrives = $(Get-WMIObject -Class "Win32_MountPoint")
-});
-
-# Networking
-Add-HostInformation -Name Networking -Value $(New-Object PSCustomObject -Property @{
-    AdapterInformation = $(Get-WMIObject -Class "Win32_NetworkAdapterConfiguration")
-    Hostname           = $env:COMPUTERNAME
-    NTPConfiguration   =  $(Invoke-Expression "w32tm /query /configuration")
-    Firewall           = "TODO, as get-netfirewallrule is fairly new"
-});
-
-# Peripherals
-Add-HostInformation -Name Peripherals -Value $(New-Object PSCustomObject -Property @{
-    USBDevices    = $(Get-WMIObject -Class "Win32_USBControllerDevice")
-    SerialDevices = $(Get-WMIObject -Class "Win32_SerialPort")
-    Printers      = $(Get-WMIObject -Class "Win32_Printer")
-})
-
-# Applications and features
-Add-HostInformation -Name Applications -Value $(New-Object PSCustomObject -Property @{
-    x32 = $(Get-ChildItem "HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*")
-    x64 = $(Get-ChildItem "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*")
-})
-
-Add-HostInformation -Name RolesAndFeatures -Value $(Get-WindowsFeature);
-
-# System information
-Add-HostInformation -Name SystemInformation -Value $(Invoke-Expression "systeminfo");
-
-#---------[ Return ]---------
-return $HostInformation;
+# Return
+return $Output;
