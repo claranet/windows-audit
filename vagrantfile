@@ -1,0 +1,11 @@
+Vagrant.configure("2") do |config|
+    
+    # Specify a stock 2008 r2 box
+    config.vm.box = "opentable/win-2008r2-standard-amd64-nocm"
+    
+    # Set the box name
+    config.vm.provider :virtualbox do |vm|
+        vm.name = "windows-audit-test"
+    end
+
+end

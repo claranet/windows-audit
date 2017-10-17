@@ -55,7 +55,7 @@ $ErrorActionPreference = "Stop";
 $Output = New-Object PSCustomObject;
 
 # Scriptblock to execute imported from file
-$ScriptBlock = [scriptblock]::Create($(Get-Content ".\exec.scriptblock.ps1"));
+$ScriptBlock = [scriptblock]::Create($(Get-Content ".\audit-scriptblock.ps1"));
 
 # Loop to execute on targeted computers
 ForEach ($Computer in $Computers) {
