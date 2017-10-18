@@ -72,11 +72,11 @@ $Output = New-Object PSObject -Property @{
 
 # Memory	
     # RAM
-    TotalPhysicalMemory     = ""
-    AvailablePhysicalMemory = ""
-    VirtualMemoryMaxSize    = ""
-    VirtualMemoryAvailable  = ""
-    VirtualMemoryInUse      = ""
+    TotalPhysicalMemory     = $HostInformation.Memory.WindowsMemory.TotalPhysicalMemory
+    AvailablePhysicalMemory = $HostInformation.Memory.WindowsMemory.AvailablePhysicalMemory
+    VirtualMemoryMaxSize    = $HostInformation.Memory.WindowsMemory.VirtualMemoryMaxSize
+    VirtualMemoryAvailable  = $HostInformation.Memory.WindowsMemory.VirtualMemoryAvailable
+    VirtualMemoryInUse      = $HostInformation.Memory.WindowsMemory.VirtualMemoryInUse
 	
 # Storage	
     # Physical Disks
