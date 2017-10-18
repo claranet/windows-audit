@@ -80,7 +80,29 @@ $Output = New-Object PSObject -Property @{
 	
 # Storage	
     # Physical Disks
-    PhysicalDisks = ""
+    PhysicalDisks = $(
+        $I = 0;
+        $HostInformation.Storage.PhysicalDisks | %{
+            $I++;
+            "Disk           : $I"
+            "Interface Type : " + $_.InterfaceType
+            "Size           : " + $_.Size
+            "Features       : " + $($_.CapabilityDescriptions -Join ", ")
+            "Caption        : " + $_.Caption
+            "Manufacturer   : " + $_.Manufacturer
+            "Model          : " + $_.Model
+            "Disk Type      : " + $_.MediaType
+            "Serial Number  : " + $_.SerialNumber
+            if ($_.SCSIBus) {
+            "SCSI Information"
+                "Bus          : " + $_.SCSIBus
+                "Logical Unit : " + $_.SCSILogicalUnit
+                "Port         : " + $_.SCSIPort
+                "Target ID    : " + $_.SCSITargetID
+            }
+            " "
+        }
+    )
 
     # Logical Disks
     LogicalDisks = ""
