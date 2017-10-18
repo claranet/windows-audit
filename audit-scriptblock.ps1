@@ -319,6 +319,57 @@ catch {
     Write-Host "Error gathering Active Directory Domain Controller information: " + $Error[0].Exception.Message -ForegroundColor Red;
 }
 
+# SQL Server
+try {
+    if (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL") {
+        
+        Write-Host "Gathering SQL Server information" -ForegroundColor Cyan;
+
+        # Get the SQLPS module imported, trap just in case it's not set up properly
+        try {
+            [Void](Import-Module SQLPS -DisableNameChecking -WarningAction SilentlyContinue);
+        }
+        catch {
+            # Let's get the latest version of SQL from whichever directory SQL is installed in
+            if (Test-Path "C:\Program Files\Microsoft SQL Server") {
+                $V = ((gci "C:\Program Files\Microsoft SQL Server" | ?{$_.Name -match "^\d+$"}).Name | Measure -Maximum).Maximum;
+            }
+            else {
+                $V = ((gci "C:\Program Files (x86)\Microsoft SQL Server" | ?{$_.Name -match "^\d+$"}).Name | Measure -Maximum).Maximum;
+            }
+
+            # Add snapin method, this will throw into the outer catch if it fails
+            Invoke-Expression "Add-PSSnapin SqlServerProviderSnapin$V";
+        }
+
+        # Get a list of databases
+        $DatabaseList = $((Invoke-SQLCMD -Query "SELECT NAME FROM SYS.DATABASES" -Server $env:computername -Database "Master").Name);
+        
+        # Get some help information for the databases
+        $DatabaseInformation = New-Object PSCustomObject;
+        $DatabaseList | %{
+            # Get the database name
+            $DatabaseName = $_;
+
+            # Add the information object to the collection
+            $DatabaseInformation += $(New-Object PSCustomObject -Property @{
+                DatabaseName        = $DatabaseName
+                DatabaseInformation = $(Invoke-SQLCMD -Query "EXEC SP_HELPDB '$DatabaseName'" -Server $env:computername -Database "Master")
+            })
+        }
+
+        # Add a collection containing our IIS trees to the hostinfo object
+        Add-HostInformation -Name SQLServer -Value $(New-Object PSCustomObject -Property @{
+            DatabaseList        = $Databases
+            DatabaseInformation = $DatabaseInformation
+        });
+
+    };
+}
+catch {
+    Write-Host "Error gathering SQL Server information: " + $Error[0].Exception.Message -ForegroundColor Red;
+}
+
 # Check if Apache is installed and get applications
 try {
     if (Get-Service | ?{$_.Name -like "*Apache*" -and $_.Name -notlike "*Tomcat*"}) {
