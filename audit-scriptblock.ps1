@@ -30,6 +30,9 @@ Function Add-HostInformation {
 
 #---------[ Main() ]---------
 
+# OS Information
+Add-HostInformation -Name Compute -Value $(Get-WMIObject -Class "Win32_OperatingSystem" | Select -Property *);
+
 # System Information
 $SystemInfo = Get-WMIObject -Class "Win32_ComputerSystem" | Select -Property *;
 
