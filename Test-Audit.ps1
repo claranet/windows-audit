@@ -7,7 +7,7 @@ Invoke-Expression "vagrant up";
 # Get our PSCredential in scope
 Write-Host "Building credentials" -ForegroundColor Yellow;
 $Password = "vagrant" | ConvertTo-SecureString -AsPlainText -Force;
-$PSCredential = New-Object System.Management.Automation.PSCredential("vagrant",$Password);
+$PSCredential = New-Object System.Management.Automation.PSCredential("AUDITTEST\vagrant",$Password);
 
 # Execute our script against the vagrant box
 Write-Host "Invoking test" -ForegroundColor Yellow;
