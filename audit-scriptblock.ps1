@@ -26,7 +26,7 @@ Function Add-HostInformation {
     # Add the property to HostInformation
     $HostInformation | Add-Member -MemberType NoteProperty -Name $Name -Value $Value;
 
-}
+};
 
 #---------[ Main() ]---------
 
@@ -55,7 +55,7 @@ Switch ($SystemInfo.Model) {
         $IsVirtualMachine = $False;
         $MachineType      = $SystemInfo.Model;
     }
-}
+};
 
 # And add to the collection
 Add-HostInformation -Name SystemInfo -Value $(New-Object PSCustomObject -Property @{
@@ -63,17 +63,40 @@ Add-HostInformation -Name SystemInfo -Value $(New-Object PSCustomObject -Propert
     IsVirtualMachine = $IsVirtualMachine
     MachineType      = $MachineType
     SystemInfo       = $SystemInfo
-})
+});
 
 # Compute
 Add-HostInformation -Name Compute -Value $(Get-WMIObject -Class "Win32_Processor" | Select -Property *);
 
-# Memory, we need to do a check here as Win32_PhysicalMemory is $Null on virtual machines
+# Memory: Get a PSCustomObject to hold our goodies
+$WindowsMemory = New-Object PSCustomObject;
+
+# Enumerate the output of systeminfo and get what we want
+Invoke-Expression "systeminfo" | ?{$_ -like "*memory*"} | %{
+    # Let's split out the spaces
+    $String = $_.Replace(" ","");
+
+    # And the first : if there are more than one
+    if (($String.ToCharArray() | ?{$_ -eq ":"}).Count -gt 1) {
+        $String = ([Regex]":").Replace($String,"",1);
+    };
+
+    # Add the k:v to the object we created earlier
+    $WindowsMemory | Add-Member -MemberType NoteProperty -Name $String.Split(":")[0] -Value $String.Split(":")[1];   
+}
+
+# We need to do a check here as Win32_PhysicalMemory is $Null on virtual machines
 if ($IsVirtualMachine) {
-    Add-HostInformation -Name Memory -Value "TODO!";
+    Add-HostInformation -Name Memory -Value $(New-Object PSCustomObject -Property @{
+        PhysicalMemory = $Null
+        WindowsMemory  = $WindowsMemory
+    });
 }
 else {
-    Add-HostInformation -Name Memory -Value $(Get-WMIObject -Class "Win32_PhysicalMemory" | Select -Property *);
+    Add-HostInformation -Name Memory -Value $(New-Object PSCustomObject -Property @{
+        PhysicalMemory = $(Get-WMIObject -Class "Win32_PhysicalMemory" | Select -Property *)
+        WindowsMemory  = $WindowsMemory
+    });
 }
 
 # Storage
@@ -98,13 +121,13 @@ Add-HostInformation -Name Peripherals -Value $(New-Object PSCustomObject -Proper
     USBDevices    = $(Get-WMIObject -Class "Win32_USBControllerDevice" | Select -Property *)
     SerialDevices = $(Get-WMIObject -Class "Win32_SerialPort" | Select -Property *)
     Printers      = $(Get-WMIObject -Class "Win32_Printer" | Select -Property *)
-})
+});
 
 # Applications and features
 Add-HostInformation -Name Applications -Value $(New-Object PSCustomObject -Property @{
     x32 = $(Get-ChildItem "HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" | Select -Property *)
     x64 = $(Get-ChildItem "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" | Select -Property *)
-})
+});
 
 # Import the servermanager module for the Get-WindowsFeature cmdlet
 Import-Module ServerManager;
@@ -115,23 +138,57 @@ if (($HostInformation.RolesAndFeatures | ?{$_.Name -eq "Web-Server"}).Installed)
     # Get the WebAdministration module in
     Import-Module WebAdministration;
 
+    # Get a list .config files for each application so we can work out dependency chains
+    $ConfigFiles = Get-ChildItem "IIS:\" -Recurse | ?{$_.Name -like "*.config"} | Select FullName;
+    $ConfigFileContent = @()
+    
+    # If any are found, enumerate the collection and get the content
+    if ($ConfigFiles) {
+        $ConfigFiles | %{
+            
+            # Get the pipeline object
+            $ConfigFile = $_;
+
+            # Add to the collection
+            $ConfigFileContent += $(New-Object PSCustomObject -Property @{
+                Path    = $ConfigFile.FullName
+                Content = (Get-Content $ConfigFile.FullName | Out-String)
+            });
+        }
+    }
+
     # Add a collection containing our IIS tree to the hostinfo object
-    Add-HostInformation -Name IIS -Value $(New-Object PSCustomObject -Property @{
-        ApplicationPools = $(Get-ChildItem "IIS:\AppPools" -Recurse -Force | Select -Property *;)
-        Sites            = $(Get-ChildItem "IIS:\Sites" -Recurse -Force | Select -Property *;)
-        SslBindings      = $(Get-ChildItem "IIS:\SslBindings" -Recurse -Force | Select -Property *;)
-    })
-
-    # Get .config files for each application so we can work out dependency chains
-    #TODO
-
+    Add-HostInformation -Name IISConfiguration -Value $(New-Object PSCustomObject -Property @{
+        IIS                = $(Get-ChildItem "IIS:\" -Force | Select -Property *;)
+        ApplicationPools   = $(Get-ChildItem "IIS:\AppPools" -Recurse -Force | Select -Property *)
+        Sites              = $(Get-ChildItem "IIS:\Sites" -Recurse -Force | Select -Property *)
+        SslBindings        = $(Get-ChildItem "IIS:\SslBindings" -Recurse -Force | Select -Property *)
+        ConfigurationFiles = $ConfigFileContent
+    });
 }
 
 # Check if Apache is installed and get applications
-#TODO
+if (Get-Service | ?{$_.Name -like "*Apache*" -and $_.Name -notlike "*Tomcat*"}) {
+    
+    # Get the httpd.exe path
+    $Httpd = (Get-ChildItem "C:\Program Files (x86)\*Apache*" "httpd.exe" | Select -First 1).FullName;
+
+    # Add a collection containing our Apache tree to the hostinfo object
+    Add-HostInformation -Name ApacheApplications -Value $(New-Object PSCustomObject -Property @{
+        Applications = $((Invoke-Expression "$httpd -S").Split("`r`n"))
+    });
+
+}
 
 # Check if Tomcat is installed and get applications
-#TODO
+if (Get-Service "*Tomcat*") {
+    
+    # Add a collection containing our Tomcat tree to the hostinfo object
+    Add-HostInformation -Name TomcatApplications -Value $(New-Object PSCustomObject -Property @{
+        Applications = $((Invoke-WebRequest -URI "http://localhost:8080/manager/text/list").Content.Split("`r`n"))
+    });
+
+}
 
 #---------[ Return ]---------
 return $HostInformation;
