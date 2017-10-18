@@ -34,63 +34,105 @@ $Output = New-Object PSObject -Property @{
 	# Operating system version
     OSVersion = ""
 	
-# Compute	
+# Compute
     # CPU
-    Status = ""
-    MaxClockSpeed = ""
-    CurrentClockSpeed = ""
-    Caption = ""
-    Name = ""
-    Manufacturer = ""
-    Cores = ""
-    LogicalProcessors = ""
+    Name                  = ""
+    Manufacturer          = ""
+    Cores                 = ""
+    Status                = ""
+    MaxClockSpeed         = ""
+    CurrentClockSpeed     = ""
+    Caption               = ""
+    LogicalProcessors     = ""
     HyperThreadingEnabled = ""
 
 # Memory	
     # RAM
+    TotalPhysicalMemory     = ""
+    AvailablePhysicalMemory = ""
+    VirtualMemoryMaxSize    = ""
+    VirtualMemoryAvailable  = ""
+    VirtualMemoryInUse      = ""
 	
 # Storage	
     # Physical Disks
-	# Logical Disks
-	# Volumes
-	# Shared Folders
-	# Mounted Drives
+    PhysicalDisks = ""
+
+    # Logical Disks
+    LogicalDisks = ""
+    
+    # Volumes
+    Volumes = ""
+    
+    # Shared Folders
+    SharedFolders = ""
+    
+    # Mounted Drives
+    MountedDrives = ""
 	
 # Networking	
     # Ipv4 address(es)
-	# Ipv6 address(es)
-	# Subnet info
-	# DNS/WINS/NetBIOS info
-	# Hostname
-	# NTP/Time servers
-	# NICs
-	# Domain name
-	# Firewall
-	# TLS Certificates
+    IPv4Addresses = ""
+
+    # Ipv6 address(es)
+    IPv6Addresses = ""
+
+    # Subnet info
+    Gateway = ""
+    SubnetMask = ""
+
+    # DNS/WINS/NetBIOS info
+    DNSSuffixes = ""
+    DNSServers  = ""
+
+    # NTP/Time servers
+    NTPConfiguration = ""
+
+    # NICs
+    NetworkInterfaces = ""
+
+    # Domain name
+    DomainName = ""
+
+    # Firewall
+    EnabledFirewallZone = ""
+    FirewallRules = ""
+
+    # TLS Certificates
+    TLSCertificates = ""
 	
 # Peripherals	
     # Printers
-	# Other Serial/USB devices
+    Printers = ""
+
+    # Other Serial/USB devices
+    SerialDevices = ""
+    USBDevices    = ""
 	
 # Applications & Features	
     # Installed Win32 Applications
-	# Web Applications
-	# Windows Features
-	# Windows Roles
-	# Windows Update
-	# Scheduled tasks
-	# PowerShell version
-	# WinRM status
-	
-# System Information	
-    # Uptime/Last rebooted
-	# Region/Locale
-	# Timezone/Current time vs External
-	# System type
-	# Hypervisor & Guest tools
-	# Location
-	# Operating system version
+    InstalledApplications = ""
 
+    # Web Applications
+    WebApplications = ""
+
+    # Windows Features
+    InstalledRolesAndFeatures = ""
+
+    # Windows Update
+    InstalledUpdates = ""
+
+    # Scheduled tasks
+    ScheduledTasks = ""
+
+    # PowerShell/.NET version
+    PowerShellVersion = ""
+    DotNetVersion     = ""
+
+    # WinRM status
+    WinRMEnabled  = ""
+    WinRMProtocol = ""
+	
 }
 
 # And return it
