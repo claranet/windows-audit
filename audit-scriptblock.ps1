@@ -31,7 +31,7 @@ Function Add-HostInformation {
 #---------[ Main() ]---------
 
 # OS Information
-Add-HostInformation -Name Compute -Value $(Get-WMIObject -Class "Win32_OperatingSystem" | Select -Property *);
+Add-HostInformation -Name OS -Value $(Get-WMIObject -Class "Win32_OperatingSystem" | Select -Property *);
 
 # System Information
 $SystemInfo = Get-WMIObject -Class "Win32_ComputerSystem" | Select -Property *;
@@ -132,9 +132,12 @@ Add-HostInformation -Name Applications -Value $(New-Object PSCustomObject -Prope
     x64 = $(Get-ChildItem "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" | Select -Property *)
 });
 
-# Import the servermanager module for the Get-WindowsFeature cmdlet
-Import-Module ServerManager;
-Add-HostInformation -Name RolesAndFeatures -Value $(Get-WindowsFeature | Select -Property *);
+# Check if Server or Workstation here as ServerManager isn't available on workstations
+if ($HostInformation.OS.Caption.ToLower().Contains("server")) {
+    # Import the servermanager module for the Get-WindowsFeature cmdlet
+    Import-Module ServerManager;
+    Add-HostInformation -Name RolesAndFeatures -Value $(Get-WindowsFeature | Select -Property *);
+}
 
 # IIS Applications
 if (($HostInformation.RolesAndFeatures | ?{$_.Name -eq "Web-Server"}).Installed) {
