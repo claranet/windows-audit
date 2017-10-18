@@ -51,15 +51,24 @@ $Output = New-Object PSObject -Property @{
 	
 # Compute
     # CPU
-    Name                  = ""
-    Manufacturer          = ""
-    Cores                 = ""
-    Status                = ""
-    MaxClockSpeed         = ""
-    CurrentClockSpeed     = ""
-    Caption               = ""
-    LogicalProcessors     = ""
-    HyperThreadingEnabled = ""
+    Name                  = $HostInformation.Compute.Name
+    Manufacturer          = $HostInformation.Compute.Manufacturer
+    Cores                 = $HostInformation.Compute.NumberOfCores
+    Status                = $HostInformation.Compute.Status
+    MaxClockSpeed         = $HostInformation.Compute.MaxClockSpeed
+    CurrentClockSpeed     = $HostInformation.Compute.CurrentClockSpeed
+    Caption               = $HostInformation.Compute.Caption
+    LogicalProcessors     = $HostInformation.Compute.NumberOfLogicalProcessors
+    HyperThreadingEnabled = $(
+        $PhysicalCores = $HostInformation.Compute.NumberOfCores;
+        $LogicalCores  = $HostInformation.Compute.NumberOfLogicalProcessors
+        if ($LogicalCores -eq (2*$PhysicalCores)) {
+            return $True;
+        }
+        else {
+            return $False;
+        }
+    )
 
 # Memory	
     # RAM
