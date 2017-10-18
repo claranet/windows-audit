@@ -10,29 +10,44 @@ $Output = New-Object PSObject -Property @{
 
 # System Information	
     # Hostname
-    Hostname = ""
+    Hostname = $HostInformation.OS.CSName
 
 	# Uptime/Last rebooted
-    Uptime       = ""
-    LastRebooted = ""
+    Uptime       = [Management.ManagementDateTimeConverter]::ToDateTime($HostInformation.OS.LastBootUpTime)
+    LastRebooted = $(
+        $StartTime = [Management.ManagementDateTimeConverter]::ToDateTime($HostInformation.OS.LastBootUpTime);
+        $EndTime   = Get-Date;
+        $TimeSpan  = New-TimeSpan $StartTime $EndTime;
+        return "{0} Days, {1} Hours, {2} Minutes ago" -f $TimeSpan.Days, $TimeSpan.Hours, $TimeSpan.Minutes;
+    )
 
 	# Region/Locale
-    Region = ""
+    Locale = $(
+        $HexNumber  = [System.Globalization.NumberStyles]::HexNumber;
+        $InvarInfo  = [System.Globalization.NumberFormatInfo]::InvariantInfo;
+        $LocaleCode = 0;
+        [Void]([Int]::TryParse($HostInformation.OS.Locale, $HexNumber, $InvarInfo, [Ref]$LocaleCode));
+        return [CultureInfo]::GetCultureInfo($LocaleCode).Name;
+    )
 
 	# Timezone
-    TimeZone = ""
+    TimeZone = $(
+        $UTCOffsetHours = "{0:D2}:00:00" -F $($HostInformation.OS.CurrentTimeZone / 60);
+        $Zones = [System.TimeZoneInfo]::GetSystemTimeZones() | ?{$_.BaseUtcOffset -eq $UTCOffsetHours};
+        return $Zones.DisplayName -join " | ";
+    )
 
 	# System type
-    SystemType = ""
+    SystemType = $(if($HostInformation.SystemInfo.IsVirtualMachine){"Virtual Machine"}else{"Physical Machine"})
 
 	# Hypervisor
-    Hypervisor = ""
+    Hypervisor = $(if($HostInformation.SystemInfo.IsVirtualMachine){$HostInformation.SystemInfo.MachineType}else{"None"})
 
 	# Location
-    Location = ""
+    Location = "" # Needs work
 
 	# Operating system version
-    OSVersion = ""
+    OSVersion = $HostInformation.OS.Name.Split("|")[0].Trim()
 	
 # Compute
     # CPU
