@@ -295,6 +295,23 @@ catch {
     Write-Host "Error gathering IIS information: " + $Error[0].Exception.Message -ForegroundColor Red;
 }
 
+# Domain Controller
+try {
+    if (($HostInformation.RolesAndFeatures | ?{$_.Name -eq "AD-Domain-Services"}).Installed) {
+        
+        Write-Host "Gathering Active Directory Domain Controller information" -ForegroundColor Cyan;
+
+        # Add a collection containing our IIS trees to the hostinfo object
+        Add-HostInformation -Name ActiveDirectoryDomainController -Value $(New-Object PSCustomObject -Property @{
+            #Props
+        });
+
+    };
+}
+catch {
+    Write-Host "Error gathering Active Directory Domain Controller information: " + $Error[0].Exception.Message -ForegroundColor Red;
+}
+
 # Check if Apache is installed and get applications
 try {
     if (Get-Service | ?{$_.Name -like "*Apache*" -and $_.Name -notlike "*Tomcat*"}) {
