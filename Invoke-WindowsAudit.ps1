@@ -68,7 +68,7 @@ ForEach ($Computer in $Computers) {
 
         # We need to check and see if the user supplied credentials and act accordingly
         if ($PSCredential) {
-            # Execute the command supplying the credential 
+            # Execute the command supplying the credential
             $HostInformation = Invoke-Command -ComputerName $Hostname -Port $Port -ScriptBlock $ScriptBlock -Credential $PSCredential;
         }
         else {

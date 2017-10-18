@@ -31,9 +31,11 @@ Function Add-HostInformation {
 #---------[ Main() ]---------
 
 # OS Information
+Write-Host "Gathering OS information";
 Add-HostInformation -Name OS -Value $(Get-WMIObject -Class "Win32_OperatingSystem" | Select -Property *);
 
 # System Information
+Write-Host "Gathering system information";
 $SystemInfo = Get-WMIObject -Class "Win32_ComputerSystem" | Select -Property *;
 
 # Check to see what type of machine we're running
@@ -69,9 +71,11 @@ Add-HostInformation -Name SystemInfo -Value $(New-Object PSCustomObject -Propert
 });
 
 # Compute
+Write-Host "Gathering compute information";
 Add-HostInformation -Name Compute -Value $(Get-WMIObject -Class "Win32_Processor" | Select -Property *);
 
 # Memory: Get a PSCustomObject to hold our goodies
+Write-Host "Gathering memory information";
 $WindowsMemory = New-Object PSCustomObject;
 
 # Enumerate the output of systeminfo and get what we want
@@ -86,7 +90,7 @@ Invoke-Expression "systeminfo" | ?{$_ -like "*memory*"} | %{
 
     # Add the k:v to the object we created earlier
     $WindowsMemory | Add-Member -MemberType NoteProperty -Name $String.Split(":")[0] -Value $String.Split(":")[1];   
-}
+};
 
 # We need to do a check here as Win32_PhysicalMemory is $Null on virtual machines
 if ($IsVirtualMachine) {
@@ -103,6 +107,7 @@ else {
 }
 
 # Storage
+Write-Host "Gathering storage information";
 Add-HostInformation -Name Storage -Value $(New-Object PSCustomObject -Property @{
     PhysicalDisks = $(Get-WMIObject -Class "Win32_DiskDrive" | Select -Property *)
     LogicalDisks  = $(Get-WMIObject -Class "Win32_LogicalDisk" | Select -Property *)
@@ -111,22 +116,32 @@ Add-HostInformation -Name Storage -Value $(New-Object PSCustomObject -Property @
     MountedDrives = $(Get-WMIObject -Class "Win32_MountPoint" | Select -Property *)
 });
 
+
 # Networking
+Write-Host "Gathering networking information";
+
+# Let's get the Com object established for the firewall rules, outvar to null to avoid ps misinterpretation
+$Firewall = New-Object -Com "HNetCfg.FwPolicy2" -OutVariable null;
+
+# And add to the hostinformation collection
 Add-HostInformation -Name Networking -Value $(New-Object PSCustomObject -Property @{
     AdapterInformation = $(Get-WMIObject -Class "Win32_NetworkAdapterConfiguration" | Select -Property *)
     Hostname           = $env:COMPUTERNAME
     NTPConfiguration   = $(Invoke-Expression "w32tm /query /configuration")
-    Firewall           = (New-Object –ComObject HNetCfg.FwPolicy2).Rules
+    FirewallZone       = $(switch ($Firewall.CurrentProfileTypes) {1 {"Domain"};2 {"Private"};4 {"Public"}})
+    FirewallRules      = $Firewall.Rules
 });
 
 # Peripherals
+Write-Host "Gathering peripherals information";
 Add-HostInformation -Name Peripherals -Value $(New-Object PSCustomObject -Property @{
     USBDevices    = $(Get-WMIObject -Class "Win32_USBControllerDevice" | Select -Property *)
     SerialDevices = $(Get-WMIObject -Class "Win32_SerialPort" | Select -Property *)
     Printers      = $(Get-WMIObject -Class "Win32_Printer" | Select -Property *)
 });
 
-# Applications and features
+# Applications
+Write-Host "Gathering application information";
 Add-HostInformation -Name Applications -Value $(New-Object PSCustomObject -Property @{
     x32 = $(Get-ChildItem "HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" | Select -Property *)
     x64 = $(Get-ChildItem "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" | Select -Property *)
@@ -134,51 +149,58 @@ Add-HostInformation -Name Applications -Value $(New-Object PSCustomObject -Prope
 
 # Check if Server or Workstation here as ServerManager isn't available on workstations
 if ($HostInformation.OS.Caption.ToLower().Contains("server")) {
+    
+    Write-Host "Gathering roles and features information";
+
     # Import the servermanager module for the Get-WindowsFeature cmdlet
     Import-Module ServerManager;
     Add-HostInformation -Name RolesAndFeatures -Value $(Get-WindowsFeature | Select -Property *);
+
 };
 
-# IIS Applications
+<# IIS Applications
 if (($HostInformation.RolesAndFeatures | ?{$_.Name -eq "Web-Server"}).Installed) {
-    # Get the WebAdministration module in
+    
+    Write-Host "Gathering IIS information";
+
+    # Get the WebAdministration module imported
     Import-Module WebAdministration;
 
     # Get a list .config files for each application so we can work out dependency chains
     $ConfigFiles = Get-ChildItem "IIS:\" -Recurse | ?{$_.Name -like "*.config"} | Select FullName;
-    $ConfigFileContent = @()
+    $ConfigFileContent = @();
     
     # If any are found, enumerate the collection and get the content
-    if ($ConfigFiles) {
-        $ConfigFiles | %{
-            
-            # Get the pipeline object
-            $ConfigFile = $_;
+    $ConfigFiles | %{
+        
+        # Get the pipeline object
+        $ConfigFile = $_;
 
-            # Add to the collection
-            $ConfigFileContent += $(New-Object PSCustomObject -Property @{
-                Path    = $ConfigFile.FullName
-                Content = (Get-Content $ConfigFile.FullName | Out-String)
-            });
-        }
+        # Add to the collection
+        $ConfigFileContent += $(New-Object PSCustomObject -Property @{
+            Path    = $ConfigFile.FullName
+            Content = $(Get-Content $ConfigFile.FullName | Out-String)
+        });
     }
 
     # Add a collection containing our IIS tree to the hostinfo object
     Add-HostInformation -Name IISConfiguration -Value $(New-Object PSCustomObject -Property @{
-        IIS                = $(Get-ChildItem "IIS:\" -Force | Select -Property *;)
+        IIS                = $(Get-ChildItem "IIS:\" -Force | Select -Property *)
         ApplicationPools   = $(Get-ChildItem "IIS:\AppPools" -Recurse -Force | Select -Property *)
         Sites              = $(Get-ChildItem "IIS:\Sites" -Recurse -Force | Select -Property *)
         SslBindings        = $(Get-ChildItem "IIS:\SslBindings" -Recurse -Force | Select -Property *)
         ConfigurationFiles = $ConfigFileContent
     });
-};
+};#>
 
 # Check if Apache is installed and get applications
 if (Get-Service | ?{$_.Name -like "*Apache*" -and $_.Name -notlike "*Tomcat*"}) {
     
+    Write-Host "Gathering Apache Virtual Host information";
+
     # Get the Apache install and httpd.exe paths
-    $ApachePath = (Get-ChildItem "C:\Program Files (x86)\*Apache*").FullName;
-    $Httpd = (Get-ChildItem $ApachePath "httpd.exe" | Select -First 1).FullName;
+    $ApachePath = $((Get-ChildItem "C:\Program Files (x86)\*Apache*").FullName);
+    $Httpd      = $((Get-ChildItem $ApachePath "httpd.exe" | Select -First 1).FullName);
 
     # Add a collection containing our Apache tree to the hostinfo object
     Add-HostInformation -Name ApacheApplications -Value $(New-Object PSCustomObject -Property @{
@@ -190,6 +212,8 @@ if (Get-Service | ?{$_.Name -like "*Apache*" -and $_.Name -notlike "*Tomcat*"}) 
 # Check if Tomcat is installed and get applications
 if (Get-Service | ?{$_.Name -like "*Tomcat*"}) {
     
+    Write-Host "Gathering Tomcat applications information";
+
     # Add a collection containing our Tomcat tree to the hostinfo object
     Add-HostInformation -Name TomcatApplications -Value $(New-Object PSCustomObject -Property @{
         Applications = $((New-Object System.Net.WebClient).DownloadString("http://localhost:8080/manager/text/list").Split("`r`n"))
@@ -198,4 +222,5 @@ if (Get-Service | ?{$_.Name -like "*Tomcat*"}) {
 };
 
 #---------[ Return ]---------
+Write-Host "Gathering completed";
 return $HostInformation;
