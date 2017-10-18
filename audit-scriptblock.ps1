@@ -301,9 +301,16 @@ try {
         
         Write-Host "Gathering Active Directory Domain Controller information" -ForegroundColor Cyan;
 
+        # Get the ActiveDirectory module imported
+        Import-Module ActiveDirectory;
+
         # Add a collection containing our IIS trees to the hostinfo object
         Add-HostInformation -Name ActiveDirectoryDomainController -Value $(New-Object PSCustomObject -Property @{
-            #Props
+            DomainController = $(Get-ADDomainController | Select -Property *)
+            Domain           = $(Get-ADDomain | Select -Property *)
+            Forest           = $(Get-ADForest | Select -Property *)
+            DSE              = $(Get-ADRootDSE | Select -Property *)
+            DCDiag           = $(Invoke-Expression "dcdiag")
         });
 
     };
