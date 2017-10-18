@@ -137,7 +137,7 @@ if ($HostInformation.OS.Caption.ToLower().Contains("server")) {
     # Import the servermanager module for the Get-WindowsFeature cmdlet
     Import-Module ServerManager;
     Add-HostInformation -Name RolesAndFeatures -Value $(Get-WindowsFeature | Select -Property *);
-}
+};
 
 # IIS Applications
 if (($HostInformation.RolesAndFeatures | ?{$_.Name -eq "Web-Server"}).Installed) {
@@ -171,30 +171,31 @@ if (($HostInformation.RolesAndFeatures | ?{$_.Name -eq "Web-Server"}).Installed)
         SslBindings        = $(Get-ChildItem "IIS:\SslBindings" -Recurse -Force | Select -Property *)
         ConfigurationFiles = $ConfigFileContent
     });
-}
+};
 
 # Check if Apache is installed and get applications
 if (Get-Service | ?{$_.Name -like "*Apache*" -and $_.Name -notlike "*Tomcat*"}) {
     
-    # Get the httpd.exe path
-    $Httpd = (Get-ChildItem "C:\Program Files (x86)\*Apache*" "httpd.exe" | Select -First 1).FullName;
+    # Get the Apache install and httpd.exe paths
+    $ApachePath = (Get-ChildItem "C:\Program Files (x86)\*Apache*").FullName;
+    $Httpd = (Get-ChildItem $ApachePath "httpd.exe" | Select -First 1).FullName;
 
     # Add a collection containing our Apache tree to the hostinfo object
     Add-HostInformation -Name ApacheApplications -Value $(New-Object PSCustomObject -Property @{
         Applications = $((Invoke-Expression "$httpd -S").Split("`r`n"))
     });
 
-}
+};
 
 # Check if Tomcat is installed and get applications
-if (Get-Service "*Tomcat*") {
+if (Get-Service | ?{$_.Name -like "*Tomcat*"}) {
     
     # Add a collection containing our Tomcat tree to the hostinfo object
     Add-HostInformation -Name TomcatApplications -Value $(New-Object PSCustomObject -Property @{
-        Applications = $((Invoke-WebRequest -URI "http://localhost:8080/manager/text/list").Content.Split("`r`n"))
+        Applications = $((New-Object System.Net.WebClient).DownloadString("http://localhost:8080/manager/text/list").Split("`r`n"))
     });
 
-}
+};
 
 #---------[ Return ]---------
 return $HostInformation;
