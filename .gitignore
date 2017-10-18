@@ -1,2 +1,5 @@
 # Vagrant test box data
 .vagrant
+
+# DCpromo unnatend file
+UnattendDCFile.txt
