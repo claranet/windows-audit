@@ -158,7 +158,7 @@ if ($HostInformation.OS.Caption.ToLower().Contains("server")) {
 
 };
 
-<# IIS Applications
+# IIS Applications
 if (($HostInformation.RolesAndFeatures | ?{$_.Name -eq "Web-Server"}).Installed) {
     
     Write-Host "Gathering IIS information";
@@ -183,15 +183,63 @@ if (($HostInformation.RolesAndFeatures | ?{$_.Name -eq "Web-Server"}).Installed)
         });
     }
 
-    # Add a collection containing our IIS tree to the hostinfo object
+    # Because the calling machine may not have the WebAdministration module, we need to use appcmd for the next section
+    $Appcmd = "C:\windows\system32\inetsrv\appcmd.exe";
+
+    # Sites
+    $Sites = New-Object PSCustomObject;
+    & $Appcmd "list" "site" | %{
+        # Get the pipe object and trim the SITE prefix
+        $Line = $_.Replace("SITE ","");
+
+        # Split up and clean
+        $SiteName = $Line.Split("(")[0].Trim("""");
+        $SiteName = $SiteName.Substring(0,$SiteName.Length-2); # Remove extra "
+        $SiteInfo = $Line.Split("(")[1].TrimEnd(")");
+
+        # Add the results to our collection
+        $Sites | Add-Member -MemberType NoteProperty -Name $SiteName -Value $SiteInfo;
+    }
+
+    # Applciation pools
+    $AppPools = New-Object PSCustomObject;
+    & $Appcmd "list" "apppool" | %{
+        # Get the pipe object and trim the APPPOOL prefix
+        $Line = $_.Replace("APPPOOL ","");
+
+        # Split up and clean
+        $AppPoolName = $Line.Split("(")[0].Trim("""");
+        $AppPoolName = $AppPoolName.Substring(0,$AppPoolName.Length-2); # Remove extra "
+        $AppPoolInfo = $Line.Split("(")[1].TrimEnd(")");
+
+        # Add the results to our collection
+        $AppPools | Add-Member -MemberType NoteProperty -Name $AppPoolName -Value $AppPoolInfo;
+    }
+
+    # Virtual directories
+    $VirtualDirectories = New-Object PSCustomObject;
+    & $Appcmd "list" "vdir" | %{
+        # Get the pipe object and trim the VDIR prefix
+        $Line = $_.Replace("VDIR ","");
+
+        # Split up and clean
+        $VirtualDirectoryName = $Line.Split("(")[0].Trim("""");
+        $VirtualDirectoryName = $VirtualDirectoryName.Substring(0,$VirtualDirectoryName.Length-2); # Remove extra "
+        $VirtualDirectoryInfo = $Line.Split("(")[1].TrimEnd(")");
+
+        # Add the results to our collection
+        $VirtualDirectories | Add-Member -MemberType NoteProperty -Name $VirtualDirectoryName -Value $VirtualDirectoryInfo;
+    }
+
+    # Add a collection containing our IIS trees to the hostinfo object
     Add-HostInformation -Name IISConfiguration -Value $(New-Object PSCustomObject -Property @{
-        IIS                = $(Get-ChildItem "IIS:\" -Force | Select -Property *)
-        ApplicationPools   = $(Get-ChildItem "IIS:\AppPools" -Recurse -Force | Select -Property *)
-        Sites              = $(Get-ChildItem "IIS:\Sites" -Recurse -Force | Select -Property *)
-        SslBindings        = $(Get-ChildItem "IIS:\SslBindings" -Recurse -Force | Select -Property *)
-        ConfigurationFiles = $ConfigFileContent
+        Sites               = $Sites
+        ApplicationPools    = $AppPools
+        VirtualDirectories  = $VirtualDirectories
+        ConfigurationFiles  = $ConfigFileContent
     });
-};#>
+    
+};
 
 # Check if Apache is installed and get applications
 if (Get-Service | ?{$_.Name -like "*Apache*" -and $_.Name -notlike "*Tomcat*"}) {
