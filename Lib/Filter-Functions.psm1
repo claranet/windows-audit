@@ -196,13 +196,13 @@ Function Locate-WindowsMachine {
 
                 # Work out if the options set is there
                 if($Result -And $Result.Length -eq 4) { 
-                    $Location = "Azure Virtual Machine"
+                    $Location = "Microsoft Azure"
                 }
             }
 
             # Now check our answer and see if we're on prem virtual
             if ($Location -eq $Null) {
-                $Location = "Virtual On-Prem machine"
+                $Location = "On-Premises"
             }
         } 
         finally { 
@@ -210,7 +210,7 @@ Function Locate-WindowsMachine {
         }
     }
     else {
-        $Location = "Physical On-Prem machine";
+        $Location = "On-Premises"
     }
 
     # And finally return our detected location
