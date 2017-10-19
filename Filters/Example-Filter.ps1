@@ -261,11 +261,41 @@ $Output = New-Object PSObject -Property @{
 	
 # Peripherals	
     # Printers
-    Printers = ""
+    Printers = $(
+        $HostInformation.Peripherals.Printers | %{
+            "Name                : " + $_.Name
+            "Status              : " + $_.Status
+            "Attributes          : " + $_.Attributes
+            "Availability        : " + $_.Availability
+            "Capabilities        : " + $($_.CapabilityDescriptions -join ", ")
+            "Caption             : " + $_.Caption
+            "Comment             : " + $_.Comment
+            "Description         : " + $_.Description
+            "Is Default Printer  : " + $_.Default
+            "Device ID           : " + $_.DeviceID
+            "Direct Connection   : " + $_.Direct
+            "Driver Name         : " + $_.DriverName
+            "Is Local Printer    : " + $_.Local
+            "Location            : " + $_.Location
+            "Network Printer     : " + $_.Network
+            "Port Name           : " + $_.PortName
+            "Printer State       : " + $_.PrinterState
+            "Printer Status      : " + $_.PrinterStatus
+            "Print Job Data Type : " + $_.PrintJobDataType
+            "Print Processor     : " + $_.PrintProcessor
+            "Priority            : " + $_.Priority
+            "Published           : " + $_.Published
+            "Server Name         : " + $_.ServerName
+            "Status Info         : " + $_.StatusInfo
+            "System Name         : " + $_.SystemName
+            "Last Reset Time     : " + $_.TimeOfLastReset 
+            "-----------------"
+        }
+    )
 
     # Other Serial/USB devices
-    SerialDevices = ""
-    USBDevices    = ""
+    SerialDevices = $HostInformation.Peripherals.SerialDevices
+    USBDevices    = $HostInformation.Peripherals.USBDevices
 	
 # Applications & Features	
     # Installed Win32 Applications
