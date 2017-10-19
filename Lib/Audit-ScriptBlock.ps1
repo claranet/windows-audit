@@ -29,11 +29,10 @@ Function Add-HostInformation {
 };
 
 # Returns a PSCustomObject with parsed Scheduled Tasks for this system
-Function Get-ScheduledTasks {
+Function Get-ScheduledTasksList {
     [Cmdletbinding()]
     Param(
         [Parameter(Mandatory=$False)]
-        [ValidateNotNullOrEmpty()]
         [String]$Path = "\"
     )
 
@@ -42,31 +41,35 @@ Function Get-ScheduledTasks {
     $Schedule.Connect();
 
     # Prepare an output array
-    $Output = @();
+    $ScheduledTasksListOutput = @();
 
     # Get root tasks
-    $Schedule.GetFolder($path).GetTasks(0) | % {
-        
-        # Ok get the XML definition so we can parse it
-        $XML = [XML]$_.Xml
-        
-        # And add a PSCustomObject with the goodies to the output array
-        $Output += New-Object PSCustomObject -Property @{
-            "Name"        = $_.Name
-            "Path"        = $_.Path
-            "State"       = $_.State
-            "Enabled"     = $_.Enabled
-            "LastResult"  = $_.LastTaskResult
-            "MissedRuns"  = $_.NumberOfMissedRuns
-            "LastRunTime" = $_.LastRunTime
-            "NextRunTime" = $_.NextRunTime
-            "Actions"     = ($XML.Task.Actions.Exec | %{"$($_.Command) $($_.Arguments)"}) -join ", "
+    $Schedule.GetFolder($Path).GetTasks(0) | % {    
+        try {
+            # Ok get the XML definition
+            $XML = [XML]$_.Xml;
+
+            # And add a PSCustomObject with the goodies to the output array
+            $ScheduledTasksListOutput += $(New-Object PSCustomObject -Property @{
+                "Name"        = $_.Name
+                "Path"        = $_.Path
+                "State"       = $_.State
+                "Enabled"     = $_.Enabled
+                "LastResult"  = $_.LastTaskResult
+                "MissedRuns"  = $_.NumberOfMissedRuns
+                "LastRunTime" = $_.LastRunTime
+                "NextRunTime" = $_.NextRunTime
+                "Actions"     = ($XML.Task.Actions.Exec | %{"$($_.Command) $($_.Arguments)"}) -join ", "
+            })
+        }
+        catch {
+            Write-Warning $Error[0].Exception.Message;
         }
     }
 
     # Get tasks from subfolders
     $Schedule.GetFolder($Path).GetFolders(0) | % {
-        $Output += Get-ScheduledTasks -Path $_.Path;
+        $ScheduledTasksListOutput += Get-ScheduledTasksList -Path $_.Path;
     }
 
     # Cleanup the trash before we go
@@ -74,7 +77,7 @@ Function Get-ScheduledTasks {
     Remove-Variable Schedule;
 
     # And return
-    return $Output;
+    return ,$ScheduledTasksListOutput;
 }
 
 #---------[ Main() ]---------
@@ -235,8 +238,8 @@ try {
 
     # And add to the collection
     Add-HostInformation -Name Applications -Value $(New-Object PSCustomObject -Property @{
-        x32 = $(Get-ItemProperty $x32Reg |  Select DisplayName,DisplayVersion,Publisher,InstallDate)
-        x64 = $(Get-ItemProperty $x64Reg |  Select DisplayName,DisplayVersion,Publisher,InstallDate)
+        x32 = $(Get-ItemProperty $x32Reg | ?{![String]::IsNullOrEmpty($_.DisplayName)} | Select DisplayName,DisplayVersion,Publisher,InstallDate)
+        x64 = $(Get-ItemProperty $x64Reg | ?{![String]::IsNullOrEmpty($_.DisplayName)} | Select DisplayName,DisplayVersion,Publisher,InstallDate)
     });
 }
 catch {
@@ -351,8 +354,8 @@ catch {
 try {
     Write-Host "Gathering TLS Certificate information" -ForegroundColor Cyan;
         
-    # Add a collection containing our certificate tree to the 
-    Add-HostInformation -Name TLSCertificates -Value $(Get-ChildItem "Cert:\" -Recurse -Force | Select -Property *);
+    # Add a collection containing our certificate tree
+    Add-HostInformation -Name TLSCertificates -Value $(Get-ChildItem "Cert:\LocalMachine" -Recurse | Select -Property *)
 }
 catch {
     Write-Host "Error gathering TLS Certificate information: " + $Error[0].Exception.Message -ForegroundColor Red;
@@ -393,25 +396,13 @@ try {
     Write-Host "Gathering management information" -ForegroundColor Cyan;
         
     # Get WinRM enabled state as we can use the bool to check/skip the protocol
-    $WinRMEnabled = $(try{[Void](Test-WSMan);$True}catch{$False})
-
-    if ($WinRMEnabled) {
-        # Get the transport protocols and join to a string
-        $WinRMProtocols = (Invoke-Expression "winrm e winrm/config/listener" | Select-String "Transport" | %{
-            return $_.ToString().Split("=")[1].Trim();
-        }) -Join ", ";
-    }
-    else {
-        $WinRMProtocols = "(none)";
-    }
-    
+    $WinRMEnabled = $((Test-WSMan -ErrorAction SilentlyContinue) -ne $Null)    
 
     # Add add our management info to the HostInformation object 
     Add-HostInformation -Name Management -Value $(New-Object PSCustomObject -Property @{
         PowerShellVersion = $($PSVersionTable.PSVersion.ToString())
         DotNetVersion     = $([System.Runtime.InteropServices.RuntimeEnvironment]::GetSystemVersion())
         WinRMEnabled      = $WinRMEnabled
-        WinRMProtocols    = $WinRMProtocols
     })
 }
 catch {
@@ -422,7 +413,7 @@ catch {
 try {
     Write-Host "Gathering scheduled tasks information" -ForegroundColor Cyan;
 
-    Add-HostInformation -Name ScheduledTasks -Value $(Get-ScheduledTasks);
+    Add-HostInformation -Name ScheduledTasks -Value $(Get-ScheduledTasksList);
 }
 catch {
     Write-Host "Error gathering scheduled tasks information: " + $Error[0].Exception.Message -ForegroundColor Red;

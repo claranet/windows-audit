@@ -10,14 +10,13 @@ Import-Module "..\Lib\Filter-Functions.ps1" -DisableNameChecking;
 
 # Let's declare a new object to return
 $Output = New-Object PSObject -Property @{
-
 # System Information	
     # Hostname
     Hostname = $HostInformation.OS.CSName
 
 	# Uptime/Last rebooted
     Uptime       = [Management.ManagementDateTimeConverter]::ToDateTime($HostInformation.OS.LastBootUpTime)
-    LastRebooted = $(Get-DateTimeDifference [Management.ManagementDateTimeConverter]::ToDateTime($HostInformation.OS.LastBootUpTime))
+    LastRebooted = $(Get-DateTimeDifference -CompareDateTime $([Management.ManagementDateTimeConverter]::ToDateTime($HostInformation.OS.LastBootUpTime)))
 
 	# Region/Locale
     Locale = $(Get-LocaleFromWMICode -WMILocaleCode $HostInformation.OS.Locale)
@@ -391,7 +390,7 @@ $Output = New-Object PSObject -Property @{
 
     # WinRM status
     WinRMEnabled   = $HostInformation.Management.WinRMEnabled
-    WinRMProtocols = $HostInformation.Management.WinRMProtocols
+    #WinRMProtocols = $HostInformation.Management.WinRMProtocols not available :(
 	
 }
 
