@@ -5,11 +5,6 @@ Param(
     [PSCustomObject]$HostInformation
 )
 
-# Orphans for now
-
-    # TLS Certificates
-    TLSCertificates = ""
-
 # Functions module
 Import-Module "..\Lib\Filter-Functions.ps1" -DisableNameChecking;
 
@@ -258,6 +253,9 @@ $Output = New-Object PSObject -Property @{
     # Firewall
     EnabledFirewallZone = $HostInformation.Networking.FirewallZone
     FirewallRules       = $HostInformation.Networking.FirewallRules
+
+    # TLS Certificates
+    TLSCertificates = "" # Needs further work on the Audit-Scriptblock for this
 	
 # Peripherals	
     # Printers
@@ -298,28 +296,75 @@ $Output = New-Object PSObject -Property @{
     USBDevices    = $HostInformation.Peripherals.USBDevices
 	
 # Applications & Features	
-    # Installed Win32 Applications
-    InstalledApplications = ""
+    # Desktop/Windows
+    InstalledApplicationsx32 = $(
+        $HostInformation.Applications.x32 | %{
+            "Name    : " + $_.PSChildName
+            "Type    : 32bit"
+            "-----------------"
+        }
+    )
+    InstalledApplicationsx64 = $(
+        $HostInformation.Applications.x64 | %{
+            "Name    : " + $_.PSChildName
+            "Type    : 64bit"
+            "-----------------"
+        }
+    )
 
-    # Web Applications
-    WebApplications = ""
+    # Web
+    IISWebApplications = $( # needs re-engineering in the Audit-ScriptBlock as this is terrible
+        $HostInformation.IISConfiguration.Sites | gm | ?{$_.MemberType -eq "NoteProperty"} | %{
+            "Site Name     : " + $_.Name
+            "Configuration : " + $_.Definition.Replace("string ","").Split(",").Replace("$($_.Name)=","")
+            "-----------------"
+        }
+    )
+    IISWebApplicationPools = $( # needs re-engineering in the Audit-ScriptBlock as this is terrible
+        $HostInformation.IISConfiguration.ApplicationPools | gm | ?{$_.MemberType -eq "NoteProperty"} | %{
+            "App Pool Name : " + $_.Name
+            "Configuration : " + $_.Definition.Replace("string ","").Split(",").Replace("$($_.Name)=","")
+            "-----------------"
+        }
+    )
+    IISVirtualDirectories = $( # needs re-engineering in the Audit-ScriptBlock as this is terrible
+        $HostInformation.IISConfiguration.VirtualDirectories | gm | ?{$_.MemberType -eq "NoteProperty"} | %{
+            "Virtual Directory Name : " + $_.Name
+            "Configuration          : " + $_.Definition.Replace("string ","").Split(",").Replace("$($_.Name)=","")
+            "-----------------"
+        }
+    )
+
+    # Server roles
+    ServerRoles = $(
+        return ($HostInformation.RolesAndFeatures | ?{$_.Installed -and $_.FeatureType -eq "Role"} | Select Name).Name -Join ", ";
+    )
 
     # Windows Features
-    InstalledRolesAndFeatures = ""
+    InstalledRolesAndFeatures = $(
+        $HostInformation.RolesAndFeatures | ?{$_.Installed} | Sort -Property Path | %{
+            "Display Name : " + $_.DisplayName
+            "Name         : " + $_.Name
+            "Feature Type : " + $_.FeatureType
+            "Path         : " + $_.Path
+            "Sub Features : " + $($_.Subfeatures -join ", ")
+            "-----------------"
+        }
+    )
 
     # Windows Update
-    InstalledUpdates = ""
+    InstalledUpdates = "" # Needs further work on the Audit-Scriptblock to get this
 
     # Scheduled tasks
-    ScheduledTasks = ""
+    ScheduledTasks = "" # Needs further work on the Audit-Scriptblock to get this
 
     # PowerShell/.NET version
-    PowerShellVersion = ""
-    DotNetVersion     = ""
+    PowerShellVersion = "" # Needs further work on the Audit-Scriptblock to get this
+    DotNetVersion     = "" # Needs further work on the Audit-Scriptblock to get this
 
     # WinRM status
-    WinRMEnabled  = ""
-    WinRMProtocol = ""
+    WinRMEnabled  = "" # Needs further work on the Audit-Scriptblock to get this
+    WinRMProtocol = "" # Needs further work on the Audit-Scriptblock to get this
 	
 }
 
