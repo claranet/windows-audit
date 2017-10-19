@@ -5,7 +5,65 @@ Param(
     [PSCustomObject]$HostInformation
 )
 
+# Orphans for now
+    # NTP/Time servers
+    NTPConfiguration = ""
+    # TLS Certificates
+    TLSCertificates = ""
+
 # Functions
+
+# Returns a bool indicating whether the supplied string is an IPv4 address
+Function Is-Ipv4Address {
+    [Cmdletbinding()]
+    Param(
+        [Parameter(Mandatory=$False,ValueFromPipeline=$True)]
+        [String]$Address
+    )
+
+    # Pattern, will match any 32 bit 4 octet number but we know our inputs are good
+    $Pattern = "\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b";
+
+    # Return based on match
+    Switch -Regex ($Address) {
+        $Pattern {return $True}
+        default  {return $False}
+    }
+}
+
+# Returns a bool indicating whether the supplied string is an IPv4 address
+Function Is-Ipv6Address {
+    [Cmdletbinding()]
+    Param(
+        [Parameter(Mandatory=$False,ValueFromPipeline=$True)]
+        [String]$Address
+    )
+
+    # Pattern chopped up combined with a -join for legibility
+    $Pattern = @(
+        "(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|",
+        "([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}",
+        ":){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:)",
+        "{1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1",
+        ",4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA",
+        "-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9",
+        "a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[",
+        "0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:(",
+        "(:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F",
+        "]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4})",
+        "{0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1",
+        "}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0",
+        ",1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(",
+        "2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]",
+        "|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))"
+    ) -Join "";
+
+    # Return based on match
+    Switch -Regex ($Address) {
+        $Pattern {return $True}
+        default  {return $False}
+    } 
+}
 
 # Converts a Win32_LogicalDisk MediaType enum to a description string
 Function ConvertTo-DiskMediaTypeString {
@@ -244,36 +302,82 @@ $Output = New-Object PSObject -Property @{
         }
     )
 	
-# Networking	
-    # Ipv4 address(es)
-    IPv4Addresses = ""
-
-    # Ipv6 address(es)
-    IPv6Addresses = ""
-
-    # Subnet info
-    Gateway = ""
-    SubnetMask = ""
-
-    # DNS/WINS/NetBIOS info
-    DNSSuffixes = ""
-    DNSServers  = ""
-
-    # NTP/Time servers
-    NTPConfiguration = ""
-
+# Networking
     # NICs
-    NetworkInterfaces = ""
-
-    # Domain name
-    DomainName = ""
+    NetworkInterfaces = $(
+        $HostInformation.Networking.AdapterInformation | %{
+            "Adapter Index                   : " + $_.Index
+            "Model/Type                      : " + $_.Description
+            "Caption                         : " + $_.Caption
+            "IPv4 Addresses                  : " + $(($_.IPAddress | ?{Is-Ipv4Address $_}) -Join  ", ")
+            "IPv6 Addresses                  : " + $(($_.IPAddress | ?{Is-Ipv6Address $_}) -Join  ", ")
+            "Subnet Mask                     : " + $($_.IPSubnet | Select -First 1)
+            "MAC Address                     : " + $_.MACAddress
+            "Service Name                    : " + $_.ServiceName
+            "Using DHCP                      : " + $_.DHCPEnabled
+            if ($_.DHCPEnabled) {
+            "DHCP Lease Obtained             : " + [Management.ManagementDateTimeConverter]::ToDateTime($_.DHCPLeaseObtained)
+            "DHCP Lease Expires              : " + [Management.ManagementDateTimeConverter]::ToDateTime($_.DHCPLeaseExpires)
+            "DHCP Server                     : " + $_.DHCPServer
+            }
+            "DNS Domain                      : " + $_.DNSDomain
+            "DNS Suffix Order                : " + $($_.DNSDomainSuffixSearchOrder -join ", ")
+            "DNS Hostname                    : " + $_.DNSHostName
+            "DNS Server Order                : " + $($_.DNSServerSearchOrder -join ", ")
+            "Domain DNS Registration         : " + $_.DomainDNSRegistrationEnabled
+            "Full DNS Registration           : " + $_.FullDNSRegistrationEnabled
+            "Using WINS                      : " + $_.DNSEnabledForWINSResolution
+            if ($_.DNSEnabledForWINSResolution) {
+            "WINS Enable LMHost Lookup       : " + $_.WINSEnableLMHostsLookup
+            "WINS Host Lookup File           : " + $_.WINSHostLookupFile
+            "WINS Primary Server             : " + $_.WINSPrimaryServer
+            "WINS Secondary Server           : " + $_.WINSSecondaryServer
+            "WINS Scope ID                   : " + $_.WINSScopeID
+            }
+            "IP Connection Metric            : " + $_.IPConnectionMetric
+            "IP Enabled                      : " + $_.IPEnabled
+            "IP Filter Security Enabled      : " + $_.IPFilterSecurityEnabled
+            "ARP Always Source Route         : " + $_.ARPAlwaysSourceRoute
+            "ARP Use Ethernet SNAP           : " + $_.ArpUseEtherSNAP
+            "Database Path                   : " + $_.DatabasePath
+            "Dead Gateway Detection          : " + $_.DeadGWDetectEnabled
+            "Default Gateway                 : " + $($_.DefaultIPGateway -join ", ")
+            "Default TOS                     : " + $_.DefaultTOS
+            "Default TTL                     : " + $_.DefaultTTL
+            "Gateway Cost Metric             : " + $($_.GatewayCostMetric -join ", ")
+            "IGMP Level                      : " + $_.IGMPLevel
+            "IP Port Security Enabled        : " + $_.IPPortSecurityEnabled
+            "IP Use Zero Broadcast           : " + $_.UseIPZeroBroadcast 
+            "IPSec Permit IP Protocols       : " + $($_.IPSecPermitIPProtocols -join ", ")
+            "IPSec Permit TCP Ports          : " + $($_.IPSecPermitTCPPorts -join ", ")
+            "IPSec Permit UDP Ports          : " + $($_.IPSecPermitUDPPorts -join ", ")
+            "IPX Enabled                     : " + $_.IPXEnabled
+            if ($_.IPXEnabled) {
+            "IPX Address                     : " + $_.IPXAddress
+            "IPX Frame Type                  : " + $_.IPXFrameType
+            "IPX Media Type                  : " + $_.IPXMediaType
+            "IPX Network Number              : " + $_.IPXNetworkNumber
+            "IPX Virtual Network Number      : " + $_.IPXVirtualNetworkNumber
+            }
+            "Keep Alive Interval             : " + $_.KeepAliveInterval
+            "Keep Alive Time                 : " + $_.KeepAliveTime
+            "Packet MTU                      : " + $_.MTU
+            "Number of Forward Packets       : " + $_.NumForwardPackets
+            "PMTUBH Detection Enabled        : " + $_.PMTUBHDetectEnabled
+            "PMTUBH Discovery Enabled        : " + $_.PMTUBHDiscoveryEnabled
+            "TCP NetBIOS Options             : " + $_.TcpipNetBIOSOptions
+            "TCP Max Connect Retransmissions : " + $_.TcpMaxRecconectTransmissions
+            "TCP Max Data Retransmissions    : " + $_.TcpMaxDataRetransmissions
+            "TCP Number of Connections       : " + $_.TcpNumConnections
+            "TCP Use RFC1122 Urgent Pointer  : " + $_.TcpUseRFC1122UrgentPointer
+            "TCP Window Size                 : " + $_.TCPWindowSize
+            "-----------------"
+        }
+    )
 
     # Firewall
-    EnabledFirewallZone = ""
-    FirewallRules = ""
-
-    # TLS Certificates
-    TLSCertificates = ""
+    EnabledFirewallZone = $HostInformation.Networking.FirewallZone
+    FirewallRules       = $HostInformation.Networking.FirewallRules
 	
 # Peripherals	
     # Printers
