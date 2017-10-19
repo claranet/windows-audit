@@ -6,12 +6,70 @@ Param(
 )
 
 # Orphans for now
-    # NTP/Time servers
-    NTPConfiguration = ""
+
     # TLS Certificates
     TLSCertificates = ""
 
 # Functions
+
+# Returns a group of TimeZone display names that match a supplied UTC offset in minutes
+Function Get-TimeZoneDisplayName {
+    [Cmdletbinding()]
+    Param(
+        [Parameter(Mandatory=$True,ValueFromPipeline=$True)]
+        [ValidateNotNullOrEmpty()]
+        [Int]$UTCOffsetMinutes
+    )
+
+    # Let's convert the UTC offset to a formatted hours string for comparison
+    $UTCOffsetHours = "{0:D2}:00:00" -F $($UTCOffsetMinutes / 60);
+
+    # Get a list of zones that match the formatted UTC offset
+    $Zones = [System.TimeZoneInfo]::GetSystemTimeZones() | ?{$_.BaseUtcOffset -eq $UTCOffsetHours};
+
+    # Return a pipe seperated list of matching zones
+    return $Zones.DisplayName -join " | ";
+}
+
+# Returns a CultureInfo name from a supplied WMI locale code
+Function Get-LocaleFromWMICode {
+    [Cmdletbinding()]
+    Param(
+        [Parameter(Mandatory=$True,ValueFromPipeline=$True)]
+        [ValidateNotNullOrEmpty()]
+        [String]$WMILocaleCode # String to preserve leading zeroes
+    )
+
+    # Get our Hex number style and Invariant information
+    $HexNumber  = [System.Globalization.NumberStyles]::HexNumber;
+    $InvarInfo  = [System.Globalization.NumberFormatInfo]::InvariantInfo;
+
+    # Declare our ref var and parse to int
+    $LocaleCode = 0;
+    [Void]([Int]::TryParse($WMILocaleCode, $HexNumber, $InvarInfo, [Ref]$LocaleCode));
+
+    # Get and return our CultureInfo name
+    return [CultureInfo]::GetCultureInfo($LocaleCode).Name;
+}
+
+# Returns a formatted date string diffing between a supplied datetime and now (or supplied datetime)
+Function Get-DateTimeDifference {
+    [Cmdletbinding()]
+    Param(
+        [Parameter(Mandatory=$True,ValueFromPipeline=$True)]
+        [ValidateNotNullOrEmpty()]
+        [DateTime]$CompareDateTime,
+        [Parameter(Mandatory=$False,ValueFromPipeline=$True)]
+        [ValidateNotNullOrEmpty()]
+        [DateTime]$ReferenceDateTime = $(Get-Date)
+    )
+
+    # Get a timespan object we can base from
+    $TimeSpan  = New-TimeSpan $CompareDateTime $ReferenceDateTime;
+
+    # And return our formatted string
+    return "{0} Days, {1} Hours, {2} Minutes ago" -f $TimeSpan.Days, $TimeSpan.Hours, $TimeSpan.Minutes;
+}
 
 # Returns a bool indicating whether the supplied string is an IPv4 address
 Function Is-Ipv4Address {
@@ -121,6 +179,9 @@ Function ConvertTo-DiskDriveTypeString {
     }
 }
 
+
+
+
 # Let's declare a new object to return
 $Output = New-Object PSObject -Property @{
 
@@ -130,28 +191,16 @@ $Output = New-Object PSObject -Property @{
 
 	# Uptime/Last rebooted
     Uptime       = [Management.ManagementDateTimeConverter]::ToDateTime($HostInformation.OS.LastBootUpTime)
-    LastRebooted = $(
-        $StartTime = [Management.ManagementDateTimeConverter]::ToDateTime($HostInformation.OS.LastBootUpTime);
-        $EndTime   = Get-Date;
-        $TimeSpan  = New-TimeSpan $StartTime $EndTime;
-        return "{0} Days, {1} Hours, {2} Minutes ago" -f $TimeSpan.Days, $TimeSpan.Hours, $TimeSpan.Minutes;
-    )
+    LastRebooted = $(Get-DateTimeDifference [Management.ManagementDateTimeConverter]::ToDateTime($HostInformation.OS.LastBootUpTime)))
 
 	# Region/Locale
-    Locale = $(
-        $HexNumber  = [System.Globalization.NumberStyles]::HexNumber;
-        $InvarInfo  = [System.Globalization.NumberFormatInfo]::InvariantInfo;
-        $LocaleCode = 0;
-        [Void]([Int]::TryParse($HostInformation.OS.Locale, $HexNumber, $InvarInfo, [Ref]$LocaleCode));
-        return [CultureInfo]::GetCultureInfo($LocaleCode).Name;
-    )
+    Locale = $(Get-LocaleFromWMICode -WMILocaleCode $HostInformation.OS.Locale)
 
 	# Timezone
-    TimeZone = $(
-        $UTCOffsetHours = "{0:D2}:00:00" -F $($HostInformation.OS.CurrentTimeZone / 60);
-        $Zones = [System.TimeZoneInfo]::GetSystemTimeZones() | ?{$_.BaseUtcOffset -eq $UTCOffsetHours};
-        return $Zones.DisplayName -join " | ";
-    )
+    TimeZone = $(Get-TimeZoneDisplayName -UTCOffsetMinutes $HostInformation.OS.CurrentTimeZone)
+
+    # NTP/Time servers
+    NTPConfiguration = $HostInformation.Networking.NTPConfiguration
 
 	# System type
     SystemType = $(if($HostInformation.SystemInfo.IsVirtualMachine){"Virtual Machine"}else{"Physical Machine"})
