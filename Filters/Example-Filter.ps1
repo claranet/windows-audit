@@ -255,7 +255,7 @@ $Output = New-Object PSObject -Property @{
     FirewallRules       = $HostInformation.Networking.FirewallRules
 
     # TLS Certificates
-    TLSCertificates = "" # Needs further work on the Audit-Scriptblock for this
+    TLSCertificates = "" # Work completed, needs test, enumerate and formatting: $HostInformation.TLScertificates
 	
 # Peripherals	
     # Printers
@@ -299,15 +299,21 @@ $Output = New-Object PSObject -Property @{
     # Desktop/Windows
     InstalledApplicationsx32 = $(
         $HostInformation.Applications.x32 | %{
-            "Name    : " + $_.PSChildName
-            "Type    : 32bit"
+            "Name         : " + $_.DisplayName
+            "Type         : 32 bit"
+            "Version      : " + $_.DisplayVersion
+            "Publisher    : " + $_.Publisher
+            "Install Date : " + $_.InstallDate
             "-----------------"
         }
     )
     InstalledApplicationsx64 = $(
         $HostInformation.Applications.x64 | %{
-            "Name    : " + $_.PSChildName
-            "Type    : 64bit"
+            "Name         : " + $_.DisplayName
+            "Type         : 64 bit"
+            "Version      : " + $_.DisplayVersion
+            "Publisher    : " + $_.Publisher
+            "Install Date : " + $_.InstallDate
             "-----------------"
         }
     )
@@ -353,18 +359,39 @@ $Output = New-Object PSObject -Property @{
     )
 
     # Windows Update
-    InstalledUpdates = "" # Needs further work on the Audit-Scriptblock to get this
+    InstalledUpdates = $(
+        $HostInformation.WindowsUpdates |  %{
+            "Title       : " + $_.Title
+            "Description : " + $_.Description
+            "Date        : " + $_.Date
+            "Operation   : " + $_.Operation
+            "-----------------"
+        }
+    )
 
     # Scheduled tasks
-    ScheduledTasks = "" # Needs further work on the Audit-Scriptblock to get this
+    ScheduledTasks = $(
+        $HostInformation.ScheduledTasks |  %{
+            "Name          : " + $_.Name
+            "Enabled       : " + $_.Enabled
+            "Actions       : " + $_.Actions
+            "Path          : " + $_.Path
+            "State         : " + $_.State
+            "Last Result   : " + $_.LastResult
+            "Missed Runs   : " + $_.MissedRuns
+            "Next Run Time : " + $_.NextRunTime
+            "Last Run Time : " + $_.LastRunTime
+            "-----------------"
+        }
+    )
 
     # PowerShell/.NET version
-    PowerShellVersion = "" # Needs further work on the Audit-Scriptblock to get this
-    DotNetVersion     = "" # Needs further work on the Audit-Scriptblock to get this
+    PowerShellVersion = $HostInformation.Management.PowerShellVersion
+    DotNetVersion     = $HostInformation.Management.DotNetVersion
 
     # WinRM status
-    WinRMEnabled  = "" # Needs further work on the Audit-Scriptblock to get this
-    WinRMProtocol = "" # Needs further work on the Audit-Scriptblock to get this
+    WinRMEnabled   = $HostInformation.Management.WinRMEnabled
+    WinRMProtocols = $HostInformation.Management.WinRMProtocols
 	
 }
 

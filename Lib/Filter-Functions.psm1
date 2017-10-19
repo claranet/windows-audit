@@ -215,4 +215,4 @@ Function Locate-WindowsMachine {
 
     # And finally return our detected location
     return $Location;
-} 
+}

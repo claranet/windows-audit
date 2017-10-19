@@ -28,6 +28,55 @@ Function Add-HostInformation {
 
 };
 
+# Returns a PSCustomObject with parsed Scheduled Tasks for this system
+Function Get-ScheduledTasks {
+    [Cmdletbinding()]
+    Param(
+        [Parameter(Mandatory=$False)]
+        [ValidateNotNullOrEmpty()]
+        [String]$Path = "\"
+    )
+
+    # Ok get our scheduled task COM object established and connected
+    $Schedule = New-Object -ComObject "Schedule.Service";
+    $Schedule.Connect();
+
+    # Prepare an output array
+    $Output = @();
+
+    # Get root tasks
+    $Schedule.GetFolder($path).GetTasks(0) | % {
+        
+        # Ok get the XML definition so we can parse it
+        $XML = [XML]$_.Xml
+        
+        # And add a PSCustomObject with the goodies to the output array
+        $Output += New-Object PSCustomObject -Property @{
+            "Name"        = $_.Name
+            "Path"        = $_.Path
+            "State"       = $_.State
+            "Enabled"     = $_.Enabled
+            "LastResult"  = $_.LastTaskResult
+            "MissedRuns"  = $_.NumberOfMissedRuns
+            "LastRunTime" = $_.LastRunTime
+            "NextRunTime" = $_.NextRunTime
+            "Actions"     = ($XML.Task.Actions.Exec | %{"$($_.Command) $($_.Arguments)"}) -join ", "
+        }
+    }
+
+    # Get tasks from subfolders
+    $Schedule.GetFolder($Path).GetFolders(0) | % {
+        $Output += Get-ScheduledTasks -Path $_.Path;
+    }
+
+    # Cleanup the trash before we go
+    [Void]([System.Runtime.Interopservices.Marshal]::ReleaseComObject($Schedule));
+    Remove-Variable Schedule;
+
+    # And return
+    return $Output;
+}
+
 #---------[ Main() ]---------
 
 # OS Information
@@ -143,8 +192,6 @@ catch {
     Write-Host "Error gathering storage information: " + $Error[0].Exception.Message -ForegroundColor Red;
 }
 
-
-
 # Networking
 try {
     Write-Host "Gathering networking information" -ForegroundColor Cyan;
@@ -182,9 +229,14 @@ catch {
 try {
     Write-Host "Gathering application information" -ForegroundColor Cyan;
 
+    # Var up our regkeys for legibility
+    $x32Reg = "HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
+    $x64Reg = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*"
+
+    # And add to the collection
     Add-HostInformation -Name Applications -Value $(New-Object PSCustomObject -Property @{
-        x32 = $(Get-ChildItem "HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" | Select -Property *)
-        x64 = $(Get-ChildItem "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" | Select -Property *)
+        x32 = $(Get-ItemProperty $x32Reg |  Select DisplayName,DisplayVersion,Publisher,InstallDate)
+        x64 = $(Get-ItemProperty $x64Reg |  Select DisplayName,DisplayVersion,Publisher,InstallDate)
     });
 }
 catch {
@@ -293,6 +345,87 @@ try {
 }
 catch {
     Write-Host "Error gathering IIS information: " + $Error[0].Exception.Message -ForegroundColor Red;
+}
+
+# TLS Certificates
+try {
+    Write-Host "Gathering TLS Certificate information" -ForegroundColor Cyan;
+        
+    # Add a collection containing our certificate tree to the 
+    Add-HostInformation -Name TLSCertificates -Value $(Get-ChildItem "Cert:\" -Recurse -Force | Select -Property *);
+}
+catch {
+    Write-Host "Error gathering TLS Certificate information: " + $Error[0].Exception.Message -ForegroundColor Red;
+}
+
+# Windows Updates
+try {
+    Write-Host "Gathering Windows Update information" -ForegroundColor Cyan;
+        
+    # Ok let's get our Microsoft Update com object established
+    $Session = New-Object -ComObject "Microsoft.Update.Session";
+
+    # Create an update searcher
+    $Searcher = $Session.CreateUpdateSearcher();
+
+    # Query the history count
+    $HistoryCount = $Searcher.GetTotalHistoryCount();
+
+    # RTM level if zero index, act accordingly
+    if ($HistoryCount -gt 0) {
+        $UpdateHistory = $Searcher.QueryHistory(0, $HistoryCount) | ?{![String]::IsNullOrEmpty($_.Title)} | Select Title, Description, Date,@{
+            Name="Operation";Expression={Switch($_.operation){1 {"Installation"}; 2 {"Uninstallation"}; 3 {"Other"}}}
+        };
+    }
+    else {
+        $UpdateHistory = "The patch status of this Operating System is RTM";
+    }
+
+    # Add add our windows updates to the HostInformation object 
+    Add-HostInformation -Name WindowsUpdates -Value $UpdateHistory;
+}
+catch {
+    Write-Host "Error gathering Windows Update information: " + $Error[0].Exception.Message -ForegroundColor Red;
+}
+
+# PS, Windows Remote Management & .NET
+try {
+    Write-Host "Gathering management information" -ForegroundColor Cyan;
+        
+    # Get WinRM enabled state as we can use the bool to check/skip the protocol
+    $WinRMEnabled = $(try{[Void](Test-WSMan);$True}catch{$False})
+
+    if ($WinRMEnabled) {
+        # Get the transport protocols and join to a string
+        $WinRMProtocols = (Invoke-Expression "winrm e winrm/config/listener" | Select-String "Transport" | %{
+            return $_.ToString().Split("=")[1].Trim();
+        }) -Join ", ";
+    }
+    else {
+        $WinRMProtocols = "(none)";
+    }
+    
+
+    # Add add our management info to the HostInformation object 
+    Add-HostInformation -Name Management -Value $(New-Object PSCustomObject -Property @{
+        PowerShellVersion = $($PSVersionTable.PSVersion.ToString())
+        DotNetVersion     = $([System.Runtime.InteropServices.RuntimeEnvironment]::GetSystemVersion())
+        WinRMEnabled      = $WinRMEnabled
+        WinRMProtocols    = $WinRMProtocols
+    })
+}
+catch {
+    Write-Host "Error gathering management information: " + $Error[0].Exception.Message -ForegroundColor Red;
+}
+
+# Scheduled Tasks
+try {
+    Write-Host "Gathering scheduled tasks information" -ForegroundColor Cyan;
+
+    Add-HostInformation -Name ScheduledTasks -Value $(Get-ScheduledTasks);
+}
+catch {
+    Write-Host "Error gathering scheduled tasks information: " + $Error[0].Exception.Message -ForegroundColor Red;
 }
 
 # Domain Controller
