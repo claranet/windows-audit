@@ -22,7 +22,7 @@ $Output = New-Object PSObject -Property @{
 
 	# Uptime/Last rebooted
     Uptime       = [Management.ManagementDateTimeConverter]::ToDateTime($HostInformation.OS.LastBootUpTime)
-    LastRebooted = $(Get-DateTimeDifference [Management.ManagementDateTimeConverter]::ToDateTime($HostInformation.OS.LastBootUpTime)))
+    LastRebooted = $(Get-DateTimeDifference [Management.ManagementDateTimeConverter]::ToDateTime($HostInformation.OS.LastBootUpTime))
 
 	# Region/Locale
     Locale = $(Get-LocaleFromWMICode -WMILocaleCode $HostInformation.OS.Locale)
