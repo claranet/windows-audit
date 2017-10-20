@@ -55,7 +55,7 @@ $ErrorActionPreference = "Stop";
 $Output = @();
 
 # Scriptblock to execute imported from file
-[ScriptBlock]$ScriptBlock = [ScriptBlock]::Create($(Get-Content ".\Lib\Audit-Scriptblock.ps1" | Out-String));
+[ScriptBlock]$ScriptBlock = [ScriptBlock]::Create($(Get-Content "..\Lib\Audit-Scriptblock.ps1" | Out-String));
 
 # Loop to execute on targeted computers
 ForEach ($Computer in $Computers) {
@@ -89,11 +89,23 @@ ForEach ($Computer in $Computers) {
     }
 
     # And add the output
-    $Output += New-Object PSCustomObject -Property @{
-        Hostname = $Computer
-        HostInfo = $HostInformation
-    };
+    $Output += $HostInformation;
 }
 
-# Return
-return $Output;
+# Check if our RawData folder exists
+$RawDataFolder = "..\Output\RawData";
+if (!(Test-Path $RawDataFolder)) {
+    [Void](New-Item $RawDataFolder -ItemType Directory);
+}
+
+# Write XML to disk
+$Output | %{
+    # Get the pipe object
+    $HostInformation = $_;
+
+    # Get our filename
+    $OutputFileName = "$RawDataFolder\$($HostInformation.OS.CSName).cli.xml";
+
+    # Write to disk
+    Export-Clixml -InputObject $HostInformation -Path $OutputFileName;
+}

@@ -8,9 +8,11 @@ Param(
 # Functions module
 Import-Module "..\Lib\Filter-Functions.ps1" -DisableNameChecking;
 
-# Make a new dir to export to
-$ExportFolder = ".\Export";
-[Void](New-Item $ExportFolder -ItemType Directory);
+# Make a new dir to export to if not exists
+$ExportFolder = ".\Export\$($HostInformation.OS.CSName)";
+if (!(Test-Path $ExportFolder)) {
+    [Void](New-Item $ExportFolder -ItemType Directory);
+}
 
 # Host Information
 $Information = [PSCustomObject]@{

@@ -11,7 +11,5 @@ $PSCredential = New-Object System.Management.Automation.PSCredential("AUDITTEST\
 
 # Execute our script against the vagrant box
 Write-Host "Invoking test" -ForegroundColor Yellow;
-$HostInformation = .\Invoke-WindowsAudit.ps1 -Computers "127.0.0.1:55985" -PSCredential $PSCredential;
-
-Write-Host "Get host information for: $($HostInformation.HostName)" -ForegroundColor Magenta;
-$HostInformation.HostInfo;
+.\Invoke-WindowsAudit.ps1 -Computers "127.0.0.1:55985" -PSCredential $PSCredential;
+Write-Host "Test finished and written to disk" -ForegroundColor Yellow;

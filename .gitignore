@@ -1,8 +1,7 @@
 # Vagrant test box data
 .vagrant
 
-# DCpromo unnatend file
-UnattendDCFile.txt
-
-# Export folder
+# Output, Export and raw data folders
+Output
 Export
+RawData
