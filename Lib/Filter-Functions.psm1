@@ -54,7 +54,7 @@ Function Get-DateTimeDifference {
     $TimeSpan  = New-TimeSpan $CompareDateTime $ReferenceDateTime;
 
     # And return our formatted string
-    return "{0} Days, {1} Hours, {2} Minutes ago" -f $TimeSpan.Days, $TimeSpan.Hours, $TimeSpan.Minutes;
+    return "{0} Days, {1} Hours, {2} Minutes" -f $TimeSpan.Days, $TimeSpan.Hours, $TimeSpan.Minutes;
 }
 
 # Returns a bool indicating whether the supplied string is an IPv4 address

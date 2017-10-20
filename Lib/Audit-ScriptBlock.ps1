@@ -127,6 +127,7 @@ try {
         IsVirtualMachine = $IsVirtualMachine
         MachineType      = $MachineType
         SystemInfo       = $SystemInfo
+        CPUPercentInUse  = $([Math]::Round(((Get-Counter "\\$env:COMPUTERNAME\processor(_total)\% processor time" | Select CounterSamples).CounterSamples | Select CookedValue).CookedValue,2).ToString() + "%")
     });
 }
 catch {
