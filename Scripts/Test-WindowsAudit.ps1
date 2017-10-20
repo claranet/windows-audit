@@ -11,5 +11,5 @@ $PSCredential = New-Object System.Management.Automation.PSCredential("AUDITTEST\
 
 # Execute our script against the vagrant box
 Write-Host "Invoking test" -ForegroundColor Yellow;
-.\Invoke-WindowsAudit.ps1 -Computers "127.0.0.1:55985" -PSCredential $PSCredential;
+.\Get-WindowsAuditData.ps1 -Computers "127.0.0.1:55985" -PSCredential $PSCredential;
 Write-Host "Test finished and written to disk" -ForegroundColor Yellow;
