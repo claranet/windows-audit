@@ -216,3 +216,23 @@ Function Locate-WindowsMachine {
     # And finally return our detected location
     return $Location;
 }
+
+# Returns a bool indicating if HyperThreading is enabled based on supplied core counts
+Function Is-HyperThreadingEnabled {
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory=$True,ValueFromPipeline=$True)]
+        [ValidateNotNullOrEmpty()]
+        [Int]$PhysicalCores,
+        [Parameter(Mandatory=$True,ValueFromPipeline=$True)]
+        [ValidateNotNullOrEmpty()]
+        [Int]$LogicalCores
+    )
+
+    if ($LogicalCores -eq (2 * $PhysicalCores)) {
+        return $True;
+    }
+    else {
+        return $False;
+    }
+}

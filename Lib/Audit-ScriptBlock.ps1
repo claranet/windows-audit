@@ -219,7 +219,7 @@ catch {
 try {
     Write-Host "Gathering peripherals information" -ForegroundColor Cyan;
     Add-HostInformation -Name Peripherals -Value $(New-Object PSCustomObject -Property @{
-        USBDevices    = $(Get-WMIObject -Class "Win32_USBControllerDevice" | Select -Property *)
+        USBDevices    = $(Get-WMIObject -Class "Win32_USBControllerDevice" | %{[Wmi]$_.Dependent} | Select -Property *)
         SerialDevices = $(Get-WMIObject -Class "Win32_SerialPort" | Select -Property *)
         Printers      = $(Get-WMIObject -Class "Win32_Printer" | Select -Property *)
     });
