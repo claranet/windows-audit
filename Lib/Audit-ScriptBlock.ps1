@@ -80,6 +80,27 @@ Function Get-ScheduledTasksList {
     return ,$ScheduledTasksListOutput;
 }
 
+# Returns a string indicating whether the machine is running on Azure or On-Prem
+Function Locate-WindowsMachine {
+
+    # Enumerate all the network adapters that have DHCP enabled
+    Get-WmiObject -Class "Win32_NetworkAdapterConfiguration" -Filter "IPEnabled = 'True' AND DHCPEnabled ='True'" | Select SettingID | %{
+        # Get the reg path into a variable for legibility
+        $RegPath = "HKLM:\SYSTEM\CurrentControlSet\services\Tcpip\Parameters\Interfaces\$($_.SettingID)";
+
+        # Get the DHCP options set
+        $DHCP = Get-ItemProperty -Path $RegPath -Name DhcpInterfaceOptions;
+
+        # Check for the magic Azure only DHCP option
+        if ($DHCP.DHCPInterfaceOptions -contains 245) {
+            return "Azure";
+        }
+    }
+
+    # If we get this far we're on prem
+    return "On-Prem";
+}
+
 #---------[ OS ]---------
 try {
     Write-Host "Gathering OS information" -ForegroundColor Cyan;
@@ -126,6 +147,7 @@ try {
         IsVirtualMachine = $IsVirtualMachine;
         MachineType      = $MachineType;
         SystemInfo       = $SystemInfo;
+        Location         = $(Locate-WindowsMachine);
         CPUPercentInUse  = $([Math]::Round(((Get-Counter "\\$env:COMPUTERNAME\processor(_total)\% processor time" | Select CounterSamples).CounterSamples | Select CookedValue).CookedValue,2).ToString() + "%");
     });
 }

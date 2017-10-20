@@ -165,58 +165,6 @@ Function ConvertTo-DiskDriveTypeString {
     }
 }
 
-# Returns a string indicating whether the machine is running on Azure or On-Prem
-# Function (now modified) and C# were sourced here: https://gallery.technet.microsoft.com/scriptcenter/Detect-Windows-Azure-aed06d51
-# Uses the DHCP options-set 245 trick to see if the machine is running on Azure
-Function Locate-WindowsMachine { 
-    
-    # Let's add the custom type and required Assemblies
-    $CSharpClass = Get-Content ".\Lib\Azure-Detection.cs" | Out-String;
-    Add-Type -TypeDefinition $CSharpClass;
-    Add-Type -AssemblyName "System.Serviceprocess";
-    
-    # Get the VMBus object
-    $VMBus = [System.ServiceProcess.ServiceController]::GetDevices() | ?{$_.Name -eq "vmbus"};
-
-    # Prepare our Location variable
-    $Location = $Null;
-
-    # Check if it's running, if not we know we're physical on prem
-    if($VMBus.Status -eq "Running") {
-
-        # Get the custom client object
-        $DHCPClient = New-Object Microsoft.WindowsAzure.Internal.DhcpClient;
-
-        # Trapped so we can take advantage of finally block
-        try {
-            # Enumerate the collection and get our answer
-            [Microsoft.WindowsAzure.Internal.DhcpClient]::GetDhcpInterfaces() | % {  
-                # Get the options set
-                $Result = $DHCPClient.DhcpRequestParams($_.Id, 245); 
-
-                # Work out if the options set is there
-                if($Result -And $Result.Length -eq 4) { 
-                    $Location = "Microsoft Azure"
-                }
-            }
-
-            # Now check our answer and see if we're on prem virtual
-            if ($Location -eq $Null) {
-                $Location = "On-Premises"
-            }
-        } 
-        finally { 
-            $DHCPClient.Dispose();
-        }
-    }
-    else {
-        $Location = "On-Premises"
-    }
-
-    # And finally return our detected location
-    return $Location;
-}
-
 # Returns a bool indicating if HyperThreading is enabled based on supplied core counts
 Function Is-HyperThreadingEnabled {
     [CmdletBinding()]
