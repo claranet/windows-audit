@@ -80,9 +80,7 @@ Function Get-ScheduledTasksList {
     return ,$ScheduledTasksListOutput;
 }
 
-#---------[ Main() ]---------
-
-# OS Information
+#---------[ OS ]---------
 try {
     Write-Host "Gathering OS information" -ForegroundColor Cyan;
     Add-HostInformation -Name OS -Value $(Get-WMIObject -Class "Win32_OperatingSystem" | Select -Property *);
@@ -91,10 +89,11 @@ catch {
     Write-Host "Error gathering OS information: " + $Error[0].Exception.Message -ForegroundColor Red;
 }
 
-# System Information
+#---------[ System ]---------
 try {
     Write-Host "Gathering system information" -ForegroundColor Cyan;
 
+    # Get our system info object
     $SystemInfo = Get-WMIObject -Class "Win32_ComputerSystem" | Select -Property *;
 
     # Check to see what type of machine we're running
@@ -123,18 +122,18 @@ try {
 
     # And add to the collection
     Add-HostInformation -Name SystemInfo -Value $(New-Object PSCustomObject -Property @{
-        Hostname         = $env:COMPUTERNAME
-        IsVirtualMachine = $IsVirtualMachine
-        MachineType      = $MachineType
-        SystemInfo       = $SystemInfo
-        CPUPercentInUse  = $([Math]::Round(((Get-Counter "\\$env:COMPUTERNAME\processor(_total)\% processor time" | Select CounterSamples).CounterSamples | Select CookedValue).CookedValue,2).ToString() + "%")
+        Hostname         = $env:COMPUTERNAME;
+        IsVirtualMachine = $IsVirtualMachine;
+        MachineType      = $MachineType;
+        SystemInfo       = $SystemInfo;
+        CPUPercentInUse  = $([Math]::Round(((Get-Counter "\\$env:COMPUTERNAME\processor(_total)\% processor time" | Select CounterSamples).CounterSamples | Select CookedValue).CookedValue,2).ToString() + "%");
     });
 }
 catch {
     Write-Host "Error gathering system information: " + $Error[0].Exception.Message -ForegroundColor Red;
 }
 
-# Compute
+#---------[ Compute ]---------
 try {
     Write-Host "Gathering compute information" -ForegroundColor Cyan;
     Add-HostInformation -Name Compute -Value $(Get-WMIObject -Class "Win32_Processor" | Select -Property *);
@@ -143,9 +142,11 @@ catch {
     Write-Host "Error gathering compute information: " + $Error[0].Exception.Message -ForegroundColor Red;
 }
 
-# Memory: Get a PSCustomObject to hold our goodies
+#---------[ Memory ]---------
 try {
     Write-Host "Gathering memory information" -ForegroundColor Cyan;
+    
+    # Get our output object initialised
     $WindowsMemory = New-Object PSCustomObject;
 
     # Enumerate the output of systeminfo and get what we want
@@ -153,7 +154,7 @@ try {
         # Let's split out the spaces
         $String = $_.Replace(" ","");
 
-        # And the first : if there are more than one
+        # And replace the first : when there are more than one
         if (($String.ToCharArray() | ?{$_ -eq ":"}).Count -gt 1) {
             $String = ([Regex]":").Replace($String,"",1);
         };
@@ -162,41 +163,32 @@ try {
         $WindowsMemory | Add-Member -MemberType NoteProperty -Name $String.Split(":")[0] -Value $String.Split(":")[1];   
     };
 
-    # We need to do a check here as Win32_PhysicalMemory is $Null on virtual machines
-    if ($IsVirtualMachine) {
-        Add-HostInformation -Name Memory -Value $(New-Object PSCustomObject -Property @{
-            PhysicalMemory = $Null
-            WindowsMemory  = $WindowsMemory
-        });
-    }
-    else {
-        Add-HostInformation -Name Memory -Value $(New-Object PSCustomObject -Property @{
-            PhysicalMemory = $(Get-WMIObject -Class "Win32_PhysicalMemory" | Select -Property *)
-            WindowsMemory  = $WindowsMemory
-        });
-    }
+    # Note; Win32_PhysicalMemory is $Null on virtual machines
+    Add-HostInformation -Name Memory -Value $(New-Object PSCustomObject -Property @{
+        PhysicalMemory = $(Get-WMIObject -Class "Win32_PhysicalMemory" | Select -Property *);
+        WindowsMemory  = $WindowsMemory;
+    });
 }
 catch {
     Write-Host "Error gathering memory information: " + $Error[0].Exception.Message -ForegroundColor Red;
 }
 
-# Storage
+#---------[ Storage ]---------
 try {
     Write-Host "Gathering storage information" -ForegroundColor Cyan;
-
     Add-HostInformation -Name Storage -Value $(New-Object PSCustomObject -Property @{
-        PhysicalDisks = $(Get-WMIObject -Class "Win32_DiskDrive" | Select -Property *)
-        LogicalDisks  = $(Get-WMIObject -Class "Win32_LogicalDisk" | Select -Property *)
-        Volumes       = $(Get-WMIObject -Class "Win32_Volume" | Select -Property *)
-        SharedFolders = $(Get-WMIObject -Class "Win32_Share" | Select -Property *)
-        MountedDrives = $(Get-WMIObject -Class "Win32_MountPoint" | Select -Property *)
+        PhysicalDisks = $(Get-WMIObject -Class "Win32_DiskDrive" | Select -Property *);
+        LogicalDisks  = $(Get-WMIObject -Class "Win32_LogicalDisk" | Select -Property *);
+        Volumes       = $(Get-WMIObject -Class "Win32_Volume" | Select -Property *);
+        SharedFolders = $(Get-WMIObject -Class "Win32_Share" | Select -Property *);
+        MountedDrives = $(Get-WMIObject -Class "Win32_MappedLogicalDisk" | Select -Property *);
     });
 }
 catch {
     Write-Host "Error gathering storage information: " + $Error[0].Exception.Message -ForegroundColor Red;
 }
 
-# Networking
+#---------[ Networking ]---------
 try {
     Write-Host "Gathering networking information" -ForegroundColor Cyan;
 
@@ -205,72 +197,117 @@ try {
 
     # And add to the hostinformation collection
     Add-HostInformation -Name Networking -Value $(New-Object PSCustomObject -Property @{
-        AdapterInformation = $(Get-WMIObject -Class "Win32_NetworkAdapterConfiguration" | Select -Property *)
-        Hostname           = $env:COMPUTERNAME
-        NTPConfiguration   = $(Invoke-Expression "w32tm /query /configuration")
-        FirewallZone       = $(switch ($Firewall.CurrentProfileTypes) {1 {"Domain"};2 {"Private"};4 {"Public"}})
-        FirewallRules      = $Firewall.Rules
+        AdapterInformation = $(Get-WMIObject -Class "Win32_NetworkAdapterConfiguration" | Select -Property *);
+        Hostname           = $env:COMPUTERNAME;
+        NTPConfiguration   = $(Invoke-Expression "w32tm /query /configuration");
+        FirewallZone       = $(switch ($Firewall.CurrentProfileTypes) {1 {"Domain"};2 {"Private"};4 {"Public"}});
+        FirewallRules      = $Firewall.Rules;
     });
 }
 catch {
     Write-Host "Error gathering networking information: " + $Error[0].Exception.Message -ForegroundColor Red;
 }
 
-# Peripherals
+#---------[ Peripherals ]---------
 try {
     Write-Host "Gathering peripherals information" -ForegroundColor Cyan;
     Add-HostInformation -Name Peripherals -Value $(New-Object PSCustomObject -Property @{
-        USBDevices    = $(Get-WMIObject -Class "Win32_USBControllerDevice" | %{[Wmi]$_.Dependent} | Select -Property *)
-        SerialDevices = $(Get-WMIObject -Class "Win32_SerialPort" | Select -Property *)
-        Printers      = $(Get-WMIObject -Class "Win32_Printer" | Select -Property *)
+        USBDevices    = $(Get-WMIObject -Class "Win32_USBControllerDevice" | %{[Wmi]$_.Dependent} | Select -Property *);
+        SerialDevices = $(Get-WMIObject -Class "Win32_SerialPort" | Select -Property *);
+        Printers      = $(Get-WMIObject -Class "Win32_Printer" | Select -Property *);
     });
 }
 catch {
     Write-Host "Error gathering peripherals information: " + $Error[0].Exception.Message -ForegroundColor Red;
 }
 
-# Applications
+#---------[ Applications ]---------
 try {
     Write-Host "Gathering application information" -ForegroundColor Cyan;
 
-    # Var up our regkeys for legibility
-    $x32Reg = "HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
-    $x64Reg = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*"
+    # Var up our regkeys and select criteria for legibility
+    $x32Reg = "HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*";
+    $x64Reg = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*";
+    $SelectCriteria = @("DisplayName","DisplayVersion","Publisher","InstallDate");
 
     # And add to the collection
     Add-HostInformation -Name Applications -Value $(New-Object PSCustomObject -Property @{
-        x32 = $(Get-ItemProperty $x32Reg | ?{![String]::IsNullOrEmpty($_.DisplayName)} | Select DisplayName,DisplayVersion,Publisher,InstallDate)
-        x64 = $(Get-ItemProperty $x64Reg | ?{![String]::IsNullOrEmpty($_.DisplayName)} | Select DisplayName,DisplayVersion,Publisher,InstallDate)
+        x32 = $(Get-ItemProperty $x32Reg | ?{![String]::IsNullOrEmpty($_.DisplayName)} | Select $SelectCriteria);
+        x64 = $(Get-ItemProperty $x64Reg | ?{![String]::IsNullOrEmpty($_.DisplayName)} | Select $SelectCriteria);
     });
 }
 catch {
     Write-Host "Error gathering applications information: " + $Error[0].Exception.Message -ForegroundColor Red;
 }
 
-# Check if Server or Workstation here as ServerManager isn't available on workstations
+#---------[ Roles & Features ]---------
 try {
+    # Check if Server or Workstation here as ServerManager isn't available on workstations
     if ($HostInformation.OS.Caption.ToLower().Contains("server")) {
-        
         Write-Host "Gathering roles and features information" -ForegroundColor Cyan;
 
         # Import the servermanager module for the Get-WindowsFeature cmdlet
         Import-Module ServerManager;
         Add-HostInformation -Name RolesAndFeatures -Value $(Get-WindowsFeature | Select -Property *);
-
     };
 }
 catch {
     Write-Host "Error gathering roles and features information: " + $Error[0].Exception.Message -ForegroundColor Red;
 }
 
-# IIS Applications
+#---------[ IIS ]---------
 try {
     if (($HostInformation.RolesAndFeatures | ?{$_.Name -eq "Web-Server"}).Installed) {
-        
         Write-Host "Gathering IIS information" -ForegroundColor Cyan;
 
         # Get the WebAdministration module imported
         Import-Module WebAdministration;
+
+        # Now, we need to explicitly cast the outputs of the following
+        # to PSCustomObjects as the IISConfigurationElement and other
+        # types don't serialise properly.
+
+        # Get the WebSites
+        $WebSites = Get-WebSite | %{
+            New-Object PSCustomObject -Property @{
+                Name         = $_.Name;
+                ID           = $_.ID;
+                State        = $_.State;
+                PhysicalPath = $_.PhysicalPath;
+                Bindings     = @(,$($_.Bindings | %{$_.Collection}));
+            }
+        }
+
+        # Get the Application Pools
+        $ApplicationPools = gci "IIS:\AppPools" | Select -Property * | %{
+            $Name = $_.Name;
+            New-Object PSCustomObject -Property @{
+                Name                  = $Name;
+                State                 = $_.State;
+                ManagedPipelineMode   = $_.ManagedPipelineMode;
+                ManagedRuntimeVersion = $_.ManagedRuntimeVersion;
+                StartMode             = $_.StartMode;
+                AutoStart             = $_.AutoStart;
+                Applications          = @(,$((Get-WebSite | ?{$_.applicationPool -eq $Name} | Select Name).Name));
+            }
+        }
+
+        # Get the Bindings
+        $WebBindings = Get-WebBinding | %{
+            New-Object PSCustomObject -Property @{
+                Protocol           = $_.protocol;
+                BindingInformation = $_.bindingInformation;
+            }
+        }
+
+        # Get the Virtual Directories
+        $VirtualDirectories = Get-WebVirtualDirectory | %{
+            New-Object PSObject -Property @{
+                Name         = $_.Path.Split("/")[($_.Path.Split("/").Length)-1];
+                Path         = $_.Path;
+                PhysicalPath = $_.PhysicalPath;
+            }
+        }
 
         # Get a list .config files for each application so we can work out dependency chains
         $ConfigFiles = Get-ChildItem "IIS:\" -Recurse | ?{$_.Name -like "*.config"} | Select FullName;
@@ -282,87 +319,44 @@ try {
             # Get the pipeline object
             $ConfigFile = $_;
 
+            # Work out what website it belongs to
+            $WebSite = (Get-WebSite | ?{$_.PhysicalPath -like "*$($ConfigFile.Directory.FullName)*"}).Name;
+
             # Add to the collection
             $ConfigFileContent += $(New-Object PSCustomObject -Property @{
-                Path    = $ConfigFile.FullName
-                Content = $(Get-Content $ConfigFile.FullName | Out-String)
+                Site    = $WebSite;
+                Path    = $ConfigFile.FullName;
+                Content = $(Get-Content $ConfigFile.FullName | Out-String);
             });
-        }
-
-        # Because the calling machine may not have the WebAdministration module, we need to use appcmd for the next section
-        $Appcmd = "C:\windows\system32\inetsrv\appcmd.exe";
-
-        # Sites
-        $Sites = New-Object PSCustomObject;
-        & $Appcmd "list" "site" | %{
-            # Get the pipe object and trim the SITE prefix
-            $Line = $_.Replace("SITE ","");
-
-            # Split up and clean
-            $SiteName = $Line.Split("(")[0].Trim("""");
-            $SiteName = $SiteName.Substring(0,$SiteName.Length-2); # Remove extra "
-            $SiteInfo = $Line.Split("(")[1].TrimEnd(")");
-
-            # Add the results to our collection
-            $Sites | Add-Member -MemberType NoteProperty -Name $SiteName -Value $SiteInfo;
-        }
-
-        # Applciation pools
-        $AppPools = New-Object PSCustomObject;
-        & $Appcmd "list" "apppool" | %{
-            # Get the pipe object and trim the APPPOOL prefix
-            $Line = $_.Replace("APPPOOL ","");
-
-            # Split up and clean
-            $AppPoolName = $Line.Split("(")[0].Trim("""");
-            $AppPoolName = $AppPoolName.Substring(0,$AppPoolName.Length-2); # Remove extra "
-            $AppPoolInfo = $Line.Split("(")[1].TrimEnd(")");
-
-            # Add the results to our collection
-            $AppPools | Add-Member -MemberType NoteProperty -Name $AppPoolName -Value $AppPoolInfo;
-        }
-
-        # Virtual directories
-        $VirtualDirectories = New-Object PSCustomObject;
-        & $Appcmd "list" "vdir" | %{
-            # Get the pipe object and trim the VDIR prefix
-            $Line = $_.Replace("VDIR ","");
-
-            # Split up and clean
-            $VirtualDirectoryName = $Line.Split("(")[0].Trim("""");
-            $VirtualDirectoryName = $VirtualDirectoryName.Substring(0,$VirtualDirectoryName.Length-2); # Remove extra "
-            $VirtualDirectoryInfo = $Line.Split("(")[1].TrimEnd(")");
-
-            # Add the results to our collection
-            $VirtualDirectories | Add-Member -MemberType NoteProperty -Name $VirtualDirectoryName -Value $VirtualDirectoryInfo;
         }
 
         # Add a collection containing our IIS trees to the hostinfo object
         Add-HostInformation -Name IISConfiguration -Value $(New-Object PSCustomObject -Property @{
-            Sites               = $Sites
-            ApplicationPools    = $AppPools
-            VirtualDirectories  = $VirtualDirectories
-            ConfigurationFiles  = $ConfigFileContent
+            WebSites            = $WebSites;
+            ApplicationPools    = $ApplicationPools;
+            WebBindings         = $WebBindings;
+            VirtualDirectories  = $VirtualDirectories;
+            ConfigurationFiles  = $ConfigFileContent;
         });
-
     };
 }
 catch {
     Write-Host "Error gathering IIS information: " + $Error[0].Exception.Message -ForegroundColor Red;
 }
 
-# TLS Certificates
+#---------[ TLS Certificates ]---------
 try {
     Write-Host "Gathering TLS Certificate information" -ForegroundColor Cyan;
         
     # Add a collection containing our certificate tree
-    Add-HostInformation -Name TLSCertificates -Value $(Get-ChildItem "Cert:\LocalMachine" -Recurse | Select -Property *)
+    $TLSCertificates = $(Get-ChildItem "Cert:\LocalMachine" -Recurse | ?{!$_.PSIsContainer} | Select -Property *);
+    Add-HostInformation -Name TLSCertificates -Value $TLSCertificates;
 }
 catch {
     Write-Host "Error gathering TLS Certificate information: " + $Error[0].Exception.Message -ForegroundColor Red;
 }
 
-# Windows Updates
+#---------[ Windows Updates ]---------
 try {
     Write-Host "Gathering Windows Update information" -ForegroundColor Cyan;
         
@@ -382,45 +376,57 @@ try {
         };
     }
     else {
-        $UpdateHistory = "The patch status of this Operating System is RTM";
+        # RTM; Set to false here so we can parse later
+        $UpdateHistory = $False;
+    }
+
+    # Get the WSUS Server information, trapped as the key may not exist
+    $RegKey = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\";
+    try {
+        $WSUSServer = (Get-ItemProperty -Path $RegKey -Name "WUServer").WUServer;
+    }
+    catch {
+        $WSUSServer = "(None)";
     }
 
     # Add add our windows updates to the HostInformation object 
-    Add-HostInformation -Name WindowsUpdates -Value $UpdateHistory;
+    Add-HostInformation -Name WindowsUpdates -Value $(New-Object PSCustomObject -Property @{
+        UpdateHistory = $UpdateHistory;
+        WSUSConfiguration = $WSUSServer;
+    });
 }
 catch {
     Write-Host "Error gathering Windows Update information: " + $Error[0].Exception.Message -ForegroundColor Red;
 }
 
-# PS, Windows Remote Management & .NET
+#---------[ PowerShell, WinRM & .NET ]---------
 try {
     Write-Host "Gathering management information" -ForegroundColor Cyan;
         
     # Get WinRM enabled state as we can use the bool to check/skip the protocol
-    $WinRMEnabled = $((Test-WSMan -ErrorAction SilentlyContinue) -ne $Null)    
+    $WinRMEnabled = $((Test-WSMan -ErrorAction SilentlyContinue) -ne $Null); 
 
     # Add add our management info to the HostInformation object 
     Add-HostInformation -Name Management -Value $(New-Object PSCustomObject -Property @{
-        PowerShellVersion = $($PSVersionTable.PSVersion.ToString())
-        DotNetVersion     = $([System.Runtime.InteropServices.RuntimeEnvironment]::GetSystemVersion())
-        WinRMEnabled      = $WinRMEnabled
-    })
+        PowerShellVersion = $($PSVersionTable.PSVersion.ToString());
+        DotNetVersion     = $([System.Runtime.InteropServices.RuntimeEnvironment]::GetSystemVersion());
+        WinRMEnabled      = $WinRMEnabled;
+    });
 }
 catch {
     Write-Host "Error gathering management information: " + $Error[0].Exception.Message -ForegroundColor Red;
 }
 
-# Scheduled Tasks
+#---------[ Scheduled Tasks ]---------
 try {
     Write-Host "Gathering scheduled tasks information" -ForegroundColor Cyan;
-
     Add-HostInformation -Name ScheduledTasks -Value $(Get-ScheduledTasksList);
 }
 catch {
     Write-Host "Error gathering scheduled tasks information: " + $Error[0].Exception.Message -ForegroundColor Red;
 }
 
-# Domain Controller
+#---------[ Domain Controller ]---------
 try {
     if (($HostInformation.RolesAndFeatures | ?{$_.Name -eq "AD-Domain-Services"}).Installed) {
         
@@ -431,26 +437,25 @@ try {
 
         # Add a collection containing our IIS trees to the hostinfo object
         Add-HostInformation -Name ActiveDirectoryDomainController -Value $(New-Object PSCustomObject -Property @{
-            DomainController = $(Get-ADDomainController | Select -Property *)
-            Domain           = $(Get-ADDomain | Select -Property *)
-            Forest           = $(Get-ADForest | Select -Property *)
-            DSE              = $(Get-ADRootDSE | Select -Property *)
-            DCDiag           = $(Invoke-Expression "dcdiag")
+            DomainController = $(Get-ADDomainController | Select -Property *);
+            Domain           = $(Get-ADDomain | Select -Property *);
+            Forest           = $(Get-ADForest | Select -Property *);
+            DSE              = $(Get-ADRootDSE | Select -Property *);
+            DCDiag           = $(Invoke-Expression "dcdiag");
         });
-
     };
 }
 catch {
     Write-Host "Error gathering Active Directory Domain Controller information: " + $Error[0].Exception.Message -ForegroundColor Red;
 }
 
-# SQL Server
+#---------[ Database ]---------
 try {
     if (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL") {
         
         Write-Host "Gathering SQL Server information" -ForegroundColor Cyan;
 
-        # Get the SQLPS module imported, trap just in case it's not set up properly
+        # Get the SQLPS module imported, trap just in case it's not installed properly
         try {
             [Void](Import-Module SQLPS -DisableNameChecking -WarningAction SilentlyContinue);
         }
@@ -478,24 +483,23 @@ try {
 
             # Add the information object to the collection
             $DatabaseInformation += $(New-Object PSCustomObject -Property @{
-                DatabaseName        = $DatabaseName
-                DatabaseInformation = $(Invoke-SQLCMD -Query "EXEC SP_HELPDB '$DatabaseName'" -Server $env:computername -Database "Master")
+                DatabaseName        = $DatabaseName;
+                DatabaseInformation = $(Invoke-SQLCMD -Query "EXEC SP_HELPDB '$DatabaseName'" -Server $env:computername -Database "Master");
             })
-        }
+        };
 
         # Add a collection containing our IIS trees to the hostinfo object
         Add-HostInformation -Name SQLServer -Value $(New-Object PSCustomObject -Property @{
-            DatabaseList        = $Databases
-            DatabaseInformation = $DatabaseInformation
+            DatabaseList        = $Databases;
+            DatabaseInformation = $DatabaseInformation;
         });
-
     };
 }
 catch {
     Write-Host "Error gathering SQL Server information: " + $Error[0].Exception.Message -ForegroundColor Red;
 }
 
-# Check if Apache is installed and get applications
+#---------[ Apache Virtual Hosts ]---------
 try {
     if (Get-Service | ?{$_.Name -like "*Apache*" -and $_.Name -notlike "*Tomcat*"}) {
         
@@ -505,29 +509,28 @@ try {
         $ApachePath = $((Get-ChildItem "C:\Program Files (x86)\*Apache*").FullName);
         $Httpd      = $((Get-ChildItem $ApachePath "httpd.exe" | Select -First 1).FullName);
 
-        # Add a collection containing our Apache tree to the hostinfo object
-        Add-HostInformation -Name ApacheApplications -Value $(New-Object PSCustomObject -Property @{
-            Applications = $((Invoke-Expression "$httpd -S").Split("`r`n"))
-        });
-
-    };
+        if ($Httpd) {
+            # Add a collection containing our Apache tree to the hostinfo object
+            Add-HostInformation -Name ApacheVirtualHosts -Value $((Invoke-Expression "$httpd -S").Split("`r`n"));
+        }
+        else {
+            throw "Couldn't locate Apache httpd.exe";
+        }
+    }
 }
 catch {
     Write-Host "Error gathering Apache Virtual Host information: " + $Error[0].Exception.Message -ForegroundColor Red;
 }
 
-# Check if Tomcat is installed and get applications
+#---------[ Tomcat Web Applications ]---------
 try {
     if (Get-Service | ?{$_.Name -like "*Tomcat*"}) {
-        
         Write-Host "Gathering Tomcat application information" -ForegroundColor Cyan;
 
         # Add a collection containing our Tomcat tree to the hostinfo object
-        Add-HostInformation -Name TomcatApplications -Value $(New-Object PSCustomObject -Property @{
-            Applications = $((New-Object System.Net.WebClient).DownloadString("http://localhost:8080/manager/text/list").Split("`r`n"))
-        });
-
-    };
+        $TomcatApplications = $((New-Object System.Net.WebClient).DownloadString("http://localhost:8080/manager/text/list").Split("`r`n"));
+        Add-HostInformation -Name TomcatApplications -Value $TomcatApplications;
+    }
 }
 catch {
     Write-Host "Error gathering Tomcat application information: " + $Error[0].Exception.Message -ForegroundColor Red;
