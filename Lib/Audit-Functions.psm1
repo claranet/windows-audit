@@ -235,6 +235,6 @@ Function Invoke-PSExecCommand {
     # Remove the share we created before exec()
     [Void](Remove-SMBShare -Name $ShareName -Force);
 
-    # And return the goods, should be plain XML
+    # And return the goods
     return $Output;
 }

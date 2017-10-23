@@ -51,6 +51,8 @@
     This will execute the script on all three of the named computers, using the
     specified ports for WinRM on latter two and the current user's identity.
 
+    .TODO# Need to add error handling and output logging
+
     #requires -version 2
 #>
 
@@ -69,7 +71,7 @@ Param(
     # Protocol to use for connecting to the target machine
     [Parameter(Mandatory=$False)]
     [ValidateSet("WinRM","PSExec")]
-    [PSCredential]$Protocol = "WinRM",
+    [String]$Protocol = "WinRM",
 
     # PSCredential that will be used for WinRM to connect to the target machines
     [Parameter(Mandatory=$False)]
@@ -88,7 +90,7 @@ Param(
 $ErrorActionPreference = "Stop";
 
 # Import our functions from the lib module
-Import-Module ".\Lib\Audit-Functions.psm1";
+Import-Module ".\Lib\Audit-Functions.psm1" -DisableNameChecking;
 
 # Output object for holding data to write to disk
 $Output = @();

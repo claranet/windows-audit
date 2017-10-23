@@ -141,6 +141,16 @@ try {
         }
     };
 
+    # Get the CPU usage, trapped in case of negative value exception
+    try {
+        $CounterPath = "\\$env:COMPUTERNAME\processor(_total)\% processor time";
+        $CounterValue = ((Get-Counter $CounterPath | Select CounterSamples).CounterSamples | Select CookedValue).CookedValue;
+        $CPUPercentage = $([Math]::Round($CounterValue,2).ToString() + "%");
+    }
+    catch {
+        $CPUPercentage = "0%";
+    }
+
     # And add to the collection
     Add-HostInformation -Name SystemInfo -Value $(New-Object PSCustomObject -Property @{
         Hostname         = $env:COMPUTERNAME;
@@ -148,7 +158,7 @@ try {
         MachineType      = $MachineType;
         SystemInfo       = $SystemInfo;
         Location         = $(Locate-WindowsMachine);
-        CPUPercentInUse  = $([Math]::Round(((Get-Counter "\\$env:COMPUTERNAME\processor(_total)\% processor time" | Select CounterSamples).CounterSamples | Select CookedValue).CookedValue,2).ToString() + "%");
+        CPUPercentInUse  = $CPUPercentage;
     });
 }
 catch {
@@ -296,7 +306,7 @@ try {
                 ID           = $_.ID;
                 State        = $_.State;
                 PhysicalPath = $_.PhysicalPath;
-                Bindings     = @(,$($_.Bindings | %{$_.Collection}));
+                Bindings     = @(,$(($_.Bindings | %{$_.Collection}) -join " "));
             }
         }
 
