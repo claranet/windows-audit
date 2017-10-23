@@ -6,7 +6,7 @@ Param(
 )
 
 # Functions module
-Import-Module "..\Lib\Filter-Functions.ps1" -DisableNameChecking;
+Import-Module "..\Lib\Audit-Functions.ps1" -DisableNameChecking;
 
 # Make a new dir to export to if not exists
 $ExportFolder = ".\Export\$($HostInformation.OS.CSName)";

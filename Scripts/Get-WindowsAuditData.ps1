@@ -88,7 +88,7 @@ Param(
 $ErrorActionPreference = "Stop";
 
 # Import our functions from the lib module
-Import-Module ".\Lib\Filter-Functions.psm1";
+Import-Module ".\Lib\Audit-Functions.psm1";
 
 # Output object for holding data to write to disk
 $Output = @();
