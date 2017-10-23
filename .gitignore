@@ -1,7 +1,5 @@
 # Vagrant test box data
 .vagrant
 
-# Output, Export and raw data folders
+# Output folder
 Output
-Export
-RawData
