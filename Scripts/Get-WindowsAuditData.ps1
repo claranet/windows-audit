@@ -1,6 +1,6 @@
 <#
     .SYNOPSIS
-    Name: Invoke-WindowsAudit.ps1
+    Name: Get-WindowsAuditData.ps1
     Gathers information about a Windows Server instance
     
     .DESCRIPTION
@@ -55,7 +55,7 @@ $ErrorActionPreference = "Stop";
 $Output = @();
 
 # Scriptblock to execute imported from file
-[ScriptBlock]$ScriptBlock = [ScriptBlock]::Create($(Get-Content "..\Lib\Audit-Scriptblock.ps1" | Out-String));
+[ScriptBlock]$ScriptBlock = [ScriptBlock]::Create($(Get-Content ".\Lib\Audit-Scriptblock.ps1" | Out-String));
 
 # Loop to execute on targeted computers
 ForEach ($Computer in $Computers) {

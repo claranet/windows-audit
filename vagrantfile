@@ -1,11 +1,19 @@
 Vagrant.configure("2") do |config|
     
-    # Specify a stock 2008 r2 box
     config.vm.box = "opentable/win-2008r2-standard-amd64-nocm"
-    
-    # Set the box name
+    config.vm.define "twokayeight" do |twokayeight|
+    end
+    config.vm.network "forwarded_port", guest: 445, host: 4455
     config.vm.provider :virtualbox do |vm|
-        vm.name = "windows-audit-test"
+        vm.name = "twokayeight"
     end
 
+    # 2003 R2
+    #config.vm.box = "therealslimpagey/Windows_Server_2003_Enterprise_R2_puppet"
+    #config.vm.define "twokaythree" do |twokaythree|
+    #end
+    #config.vm.provider :virtualbox do |vm|
+    #    vm.name = "windows-audit-test-2003"
+    #end
+    
 end
