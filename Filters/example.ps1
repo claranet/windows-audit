@@ -218,21 +218,8 @@ catch {
     Exit(1);
 }
 
-# Let's get our destination output folder created
-Write-ShellMessage -Message "Begining data write to disk" -Type INFO;
-$ExportFolder = ".\Output\Processed";
-if (!(Test-Path $ExportFolder)) {
-    try {
-        Write-ShellMessage -Message "XLSX output folder '$ExportFolder' does not exist, creating" -Type DEBUG;
-        [Void](New-Item $ExportFolder -ItemType Directory -Force);
-    }
-    catch {
-        Write-ShellMessage -Message "XLSX output folder could not be created" -Type ERROR -ErrorRecord $_;
-        Exit(1);
-    }
-}
-
 # Now we need to eumerate the $Filter object's properties and write out
+Write-ShellMessage -Message "Begining data write to disk" -Type INFO;
 $Filter.PSObject.Properties | Sort -Property Name | %{
     
     try {
@@ -240,15 +227,9 @@ $Filter.PSObject.Properties | Sort -Property Name | %{
         $SectionName = $_.Name;
         $SectionValue = $_.Value | Select -Property *;
 
-        # Work out the export file path
+        # Get the hostname for error writing and define the output file
         $HostName = $HostInformation.OS.CSName;
-        $FilePath = "$ExportFolder\$HostName.xlsx";
-
-        # Check if file exists and remove it
-        if (Test-Path $FilePath) {
-            Write-ShellMessage -Message "File '$FilePath' already exists, removing existing file" -Type WARNING;
-            Remove-Item $FilePath -Force;
-        }
+        $FilePath = ".\Windows-Audit-Output.xlsx";
 
         # Export to File
         if ($SectionValue) {
