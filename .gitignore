@@ -6,4 +6,4 @@ vagrantfile
 Output
 
 # Test script
-Scripts\Test-WindowsAudit.ps1
+Scripts/Test-WindowsAudit.ps1
