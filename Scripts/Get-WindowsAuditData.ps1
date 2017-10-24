@@ -1,3 +1,4 @@
+#requires -version 2
 <#
     .SYNOPSIS
     Name: Get-WindowsAuditData.ps1
@@ -50,8 +51,6 @@
     .\Invoke-WindowsAudit.ps1 -Computers "dev-test-01","192.168.0.10:55876","dev-test-06:443"
     This will execute the script on all three of the named computers, using the
     specified ports for WinRM on latter two and the current user's identity.
-
-    #requires -version 2
 #>
 
 [CmdletBinding()]
