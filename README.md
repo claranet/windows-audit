@@ -246,3 +246,7 @@ Future Development
 ---------
  - Coalesce SQL server properties into a single table with `Instances > Databases > SP_HELPDB` structure
  - Further expand upon Apache/Tomcat sections
+ - Write a proper PS type adapter for the WebAdministration module types and use this to expand on IIS properties
+ - Drill down into _all_ roles and features and gather status/configuration
+ - Test for PowerShell v1 compatibility
+ - Write bottom-line script to execute locally (for airgapped machines), output CLI XML file for manual move and compilation
