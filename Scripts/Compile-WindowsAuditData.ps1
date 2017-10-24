@@ -76,32 +76,16 @@ catch {
 
 # Enumerate the collection
 $CliXmlFilesToProcess | %{
-    try {
-        # Get the filename and let the user know what we're doing
-        $FileName = $_.Name;
-        Write-ShellMessage -Message "Processing file '$FileName'" -Type INFO;
+    # Get the filename and let the user know what we're doing
+    $FileName = $_.Name;
+    Write-ShellMessage -Message "Processing file '$FileName'" -Type INFO;
 
-        # Get the CLI XML back into a PSCustomObject
-        $HostInformation = Import-Clixml -Path $_.FullName;
-        
-        # And pass the result on to the correct filter for execution
-        & $FilterPath -HostInformation $HostInformation;
-    }
-    catch {
-        Write-ShellMessage -Message "There was a problem processing file '$FileName'" -Type ERROR -ErrorRecord $_;
-        $WarningTrigger = $True;
-    }
+    # Get the CLI XML back into a PSCustomObject
+    $HostInformation = Import-Clixml -Path $_.FullName;
+    
+    # And pass the result on to the correct filter for execution
+    & $FilterPath -HostInformation $HostInformation;
 }
 
 #---------[ Fin ]---------
-
-if ($WarningTrigger -eq $True) {
-    $FinalMessage = "Audit data compliation has completed with warnings";
-    Write-ShellMessage -Message $FinalMessage -Type WARNING;
-}
-else {
-    $FinalMessage = "Audit data compliation has completed successfully";
-    Write-ShellMessage -Message $FinalMessage -Type SUCCESS;
-}
-
 Exit;
