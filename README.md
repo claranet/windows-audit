@@ -192,6 +192,7 @@ Click on the WMI class name for a full list of methods and properties from the M
 | [Win32_USBControllerDevice](https://msdn.microsoft.com/en-us/library/aa394505(v=vs.85).aspx) | `$_.Peripherals.USBDevices` |
 | [Win32_SerialPort](https://msdn.microsoft.com/en-us/library/aa394413(v=vs.85).aspx) | `$_.Peripherals.SerialDevices` |
 | [Win32_Printer](https://msdn.microsoft.com/en-us/library/aa394363(v=vs.85).aspx) | `$_.Peripherals.Printers` |
+| [Win32_Service](https://msdn.microsoft.com/en-us/library/aa394418(v=vs.85).aspx) | `$_.WindowsServices` |
 
 _(Note: the `Win32_USBControllerDevice` class is enumerated by the `[Wmi]$_.Dependent` property in order to obtain the connected devices. If you are using certain types of USB hub to chain multiple devices your output may not be captured. In this circumstance you can modify line `#286` in the `.\_Lib\Audit-Scriptblock.ps1` file to further enumerate this.)_
 
@@ -237,12 +238,11 @@ _(Note: the `Win32_USBControllerDevice` class is enumerated by the `[Wmi]$_.Depe
 | Apache Virtual Hosts | `$_.ApacheVirtualHosts` | String[] of Virtual Hosts |
 | Tomcat Applications | `$_.TomcatApplications` | String[] of applications |
 
-
-
-Output format
----------
-_wip_
-
-Specification
+Output Example
 ---------
 **[Claranet Internal Only](https://docs.google.com/spreadsheets/d/1rXc9RkPcsKet6uE8ZYqiOJ1GEwWHeesa0cMfADgdObY/)**
+
+Future Development
+---------
+ - Coalesce SQL server properties into a single table with `Instances > Databases > SP_HELPDB` structure
+ - Further expand upon Apache/Tomcat sections
