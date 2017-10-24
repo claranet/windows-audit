@@ -95,7 +95,7 @@ $CliXmlFilesToProcess | %{
 
 #---------[ Fin ]---------
 
-if ($WarningTrigger) {
+if ($WarningTrigger -eq $True) {
     $FinalMessage = "Audit data compliation has completed with warnings";
     Write-ShellMessage -Message $FinalMessage -Type WARNING;
 }

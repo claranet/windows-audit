@@ -57,27 +57,22 @@
 Param(
     # Path to a PSV file containing the list of computers|protocols to connect to
     [Parameter(Mandatory=$False)]
-    [ValidateScript({$(Test-Path $_)})]
     [String]$InputFile,
 
     # String[] of computers to execute this script on
     [Parameter(Mandatory=$False)]
-    [ValidateNotNullOrEmpty()]
     [String[]]$Computers,
 
     # Protocol to use for connecting to the target machine
     [Parameter(Mandatory=$False)]
-    [ValidateSet("WinRM","PSExec")]
     [String]$Protocol = "WinRM",
 
     # PSCredential that will be used for WinRM to connect to the target machines
     [Parameter(Mandatory=$False)]
-    [ValidateNotNullOrEmpty()]
     [PSCredential]$PSCredential,
 
     # Override for the ExportDepth to CLI XML
     [Parameter(Mandatory=$False)]
-    [ValidateRange(2,8)]
     [Int]$SerialisationDepth = 5
 )
 

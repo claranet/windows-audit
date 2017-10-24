@@ -34,7 +34,9 @@ There are a variety of sub scripts and modules however for simplicity the execut
 
  - `SerialisationDepth` - Override value for the serialisation depth to use when this script is using the `System.Management.Automation.PSSerializer` class. Defaults to `5` and range is limited to `2..8`; as anything less than `2` is useless, anything greater than `8` will generate a _very_ large (multi-gb) file and probably crash the targeted machine. Tweak this value only if the data you want is nested so low in the dataset it's not being enumerated in the output.
 
- - `Compile` - This switch when present tells the script to do a compilation of the data to an Excel spreadsheet. If this is supplied; the `Filter` parameter _must also_ be supplied
+ - `Compile` - This switch when present tells the script to do a compilation of the data to an Excel spreadsheet. If this is supplied; the `Filter` parameter _must also_ be supplied.
+
+ - `CompileOnly` - This switch when present tells the script to do a compilation of the data to an Excel spreadsheet. If this is supplied; the `Filter` parameter _must also_ be supplied.
 
  - `Filter` - The name of the filter you wish to apply to the dataset. Must exist in the `.\Filters` directory with a `.ps1` file extension. An example filter has been supplied with this solution with the name of `Example`.
 
