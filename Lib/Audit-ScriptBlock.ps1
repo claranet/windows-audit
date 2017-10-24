@@ -101,18 +101,57 @@ Function Locate-WindowsMachine {
     return "On-Prem";
 }
 
+# Writes pretty log messages
+Function Write-ShellMessage {
+    [Cmdletbinding()]
+    Param(
+        [Parameter(Mandatory=$True)]
+        [ValidateNotNullOrEmpty()]
+        [String]$Message,
+        [Parameter(Mandatory=$True)]
+        [ValidateSet("DEBUG","INFO","WARNING","SUCCESS","ERROR")]
+        [String]$Type,
+        [Parameter(Mandatory=$False)]
+        [ValidateNotNullOrEmpty()]
+        [System.Management.Automation.ErrorRecord]$ErrorRecord
+    )
+
+    # Get a datestamp sorted
+    $DateStamp = Get-Date -Format "dd/MM/yy HH:mm:ss";
+
+    # Build our message output
+    $Output = [String]::Format("[{0}] [{1}]: {2}",$DateStamp,$env:COMPUTERNAME,$Message);
+    
+    # If we have an ErrorRecord attach the message at the end
+    if ($ErrorRecord) {
+        $Output += ": $($ErrorRecord.Exception.Message)";
+    }
+
+    # Swiffy to determine colour
+    Switch ($Type) {
+        "DEBUG"   {$C = "Magenta"};
+        "INFO"    {$C = "Cyan"};
+        "WARNING" {$C = "Yellow"};
+        "SUCCESS" {$C = "Green"};
+        "ERROR"   {$C = "Red"};
+    }
+
+    # And write out
+    Write-Host $Output -ForegroundColor $C;
+}
+
 #---------[ OS ]---------
 try {
-    Write-Host "Gathering OS information" -ForegroundColor Cyan;
+    Write-ShellMessage -Message "Gathering OS information" -Type INFO;
     Add-HostInformation -Name OS -Value $(Get-WMIObject -Class "Win32_OperatingSystem" | Select -Property *);
 }
 catch {
-    Write-Host "Error gathering OS information: " + $Error[0].Exception.Message -ForegroundColor Red;
+    Write-ShellMessage -Message "Error gathering OS information" -Type ERROR -ErrorRecord $Error[0];
 }
 
 #---------[ System ]---------
 try {
-    Write-Host "Gathering system information" -ForegroundColor Cyan;
+    Write-ShellMessage -Message "Gathering system information" -Type INFO;
 
     # Get our system info object
     $SystemInfo = Get-WMIObject -Class "Win32_ComputerSystem" | Select -Property *;
@@ -162,21 +201,21 @@ try {
     });
 }
 catch {
-    Write-Host "Error gathering system information: " + $Error[0].Exception.Message -ForegroundColor Red;
+    Write-ShellMessage -Message "Error gathering system information" -Type ERROR -ErrorRecord $Error[0];
 }
 
 #---------[ Compute ]---------
 try {
-    Write-Host "Gathering compute information" -ForegroundColor Cyan;
+    Write-ShellMessage -Message "Gathering compute information" -Type INFO;
     Add-HostInformation -Name Compute -Value $(Get-WMIObject -Class "Win32_Processor" | Select -Property *);
 }
 catch {
-    Write-Host "Error gathering compute information: " + $Error[0].Exception.Message -ForegroundColor Red;
+    Write-ShellMessage -Message "Error gathering compute information" -Type ERROR -ErrorRecord $Error[0];
 }
 
 #---------[ Memory ]---------
 try {
-    Write-Host "Gathering memory information" -ForegroundColor Cyan;
+    Write-ShellMessage -Message "Gathering memory information" -Type INFO;
     
     # Get our output object initialised
     $WindowsMemory = New-Object PSCustomObject;
@@ -202,12 +241,12 @@ try {
     });
 }
 catch {
-    Write-Host "Error gathering memory information: " + $Error[0].Exception.Message -ForegroundColor Red;
+    Write-ShellMessage -Message "Error gathering memory information" -Type ERROR -ErrorRecord $Error[0];
 }
 
 #---------[ Storage ]---------
 try {
-    Write-Host "Gathering storage information" -ForegroundColor Cyan;
+    Write-ShellMessage -Message "Gathering storage information" -Type INFO;
     Add-HostInformation -Name Storage -Value $(New-Object PSCustomObject -Property @{
         PhysicalDisks = $(Get-WMIObject -Class "Win32_DiskDrive" | Select -Property *);
         LogicalDisks  = $(Get-WMIObject -Class "Win32_LogicalDisk" | Select -Property *);
@@ -217,12 +256,12 @@ try {
     });
 }
 catch {
-    Write-Host "Error gathering storage information: " + $Error[0].Exception.Message -ForegroundColor Red;
+    Write-ShellMessage -Message "Error gathering storage information" -Type ERROR -ErrorRecord $Error[0];
 }
 
 #---------[ Networking ]---------
 try {
-    Write-Host "Gathering networking information" -ForegroundColor Cyan;
+    Write-ShellMessage -Message "Gathering networking information" -Type INFO;
 
     # Let's get the Com object established for the firewall rules, outvar to null to avoid ps misinterpretation
     $Firewall = New-Object -Com "HNetCfg.FwPolicy2" -OutVariable null;
@@ -237,12 +276,12 @@ try {
     });
 }
 catch {
-    Write-Host "Error gathering networking information: " + $Error[0].Exception.Message -ForegroundColor Red;
+    Write-ShellMessage -Message "Error gathering networking information" -Type ERROR -ErrorRecord $Error[0];
 }
 
 #---------[ Peripherals ]---------
 try {
-    Write-Host "Gathering peripherals information" -ForegroundColor Cyan;
+    Write-ShellMessage -Message "Gathering peripherals information" -Type INFO;
     Add-HostInformation -Name Peripherals -Value $(New-Object PSCustomObject -Property @{
         USBDevices    = $(Get-WMIObject -Class "Win32_USBControllerDevice" | %{[Wmi]$_.Dependent} | Select -Property *);
         SerialDevices = $(Get-WMIObject -Class "Win32_SerialPort" | Select -Property *);
@@ -250,12 +289,12 @@ try {
     });
 }
 catch {
-    Write-Host "Error gathering peripherals information: " + $Error[0].Exception.Message -ForegroundColor Red;
+    Write-ShellMessage -Message "Error gathering peripherals information" -Type ERROR -ErrorRecord $Error[0];
 }
 
 #---------[ Applications ]---------
 try {
-    Write-Host "Gathering application information" -ForegroundColor Cyan;
+    Write-ShellMessage -Message "Gathering application information" -Type INFO;
 
     # Var up our regkeys and select criteria for legibility
     $x32Reg = "HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*";
@@ -269,14 +308,14 @@ try {
     });
 }
 catch {
-    Write-Host "Error gathering applications information: " + $Error[0].Exception.Message -ForegroundColor Red;
+    Write-ShellMessage -Message "Error gathering applications information" -Type ERROR -ErrorRecord $Error[0];
 }
 
 #---------[ Roles & Features ]---------
 try {
     # Check if Server or Workstation here as ServerManager isn't available on workstations
     if ($HostInformation.OS.Caption.ToLower().Contains("server")) {
-        Write-Host "Gathering roles and features information" -ForegroundColor Cyan;
+        Write-ShellMessage -Message "Gathering roles and features information" -Type INFO;
 
         # Import the servermanager module for the Get-WindowsFeature cmdlet
         Import-Module ServerManager;
@@ -284,13 +323,13 @@ try {
     };
 }
 catch {
-    Write-Host "Error gathering roles and features information: " + $Error[0].Exception.Message -ForegroundColor Red;
+    Write-ShellMessage -Message "Error gathering roles and features information" -Type ERROR -ErrorRecord $Error[0];
 }
 
 #---------[ IIS ]---------
 try {
     if (($HostInformation.RolesAndFeatures | ?{$_.Name -eq "Web-Server"}).Installed) {
-        Write-Host "Gathering IIS information" -ForegroundColor Cyan;
+        Write-ShellMessage -Message "Gathering IIS information" -Type INFO;
 
         # Get the WebAdministration module imported
         Import-Module WebAdministration;
@@ -373,24 +412,24 @@ try {
     };
 }
 catch {
-    Write-Host "Error gathering IIS information: " + $Error[0].Exception.Message -ForegroundColor Red;
+    Write-ShellMessage -Message "Error gathering IIS information" -Type ERROR -ErrorRecord $Error[0];
 }
 
 #---------[ TLS Certificates ]---------
 try {
-    Write-Host "Gathering TLS Certificate information" -ForegroundColor Cyan;
+    Write-ShellMessage -Message "Gathering TLS certificate information" -Type INFO;
         
     # Add a collection containing our certificate tree
     $TLSCertificates = $(Get-ChildItem "Cert:\LocalMachine" -Recurse | ?{!$_.PSIsContainer} | Select -Property *);
     Add-HostInformation -Name TLSCertificates -Value $TLSCertificates;
 }
 catch {
-    Write-Host "Error gathering TLS Certificate information: " + $Error[0].Exception.Message -ForegroundColor Red;
+    Write-ShellMessage -Message "Error gathering TLS certificate information" -Type ERROR -ErrorRecord $Error[0];
 }
 
 #---------[ Windows Updates ]---------
 try {
-    Write-Host "Gathering Windows Update information" -ForegroundColor Cyan;
+    Write-ShellMessage -Message "Gathering Windows Update information" -Type INFO;
         
     # Ok let's get our Microsoft Update com object established
     $Session = New-Object -ComObject "Microsoft.Update.Session";
@@ -428,12 +467,12 @@ try {
     });
 }
 catch {
-    Write-Host "Error gathering Windows Update information: " + $Error[0].Exception.Message -ForegroundColor Red;
+    Write-ShellMessage -Message "Error gathering Windows Update information" -Type ERROR -ErrorRecord $Error[0];
 }
 
 #---------[ PowerShell, WinRM & .NET ]---------
 try {
-    Write-Host "Gathering management information" -ForegroundColor Cyan;
+    Write-ShellMessage -Message "Gathering management information" -Type INFO;
         
     # Get WinRM enabled state as we can use the bool to check/skip the protocol
     $WinRMEnabled = $((Test-WSMan -ErrorAction SilentlyContinue) -ne $Null); 
@@ -446,23 +485,22 @@ try {
     });
 }
 catch {
-    Write-Host "Error gathering management information: " + $Error[0].Exception.Message -ForegroundColor Red;
+    Write-ShellMessage -Message "Error gathering management information" -Type ERROR -ErrorRecord $Error[0];
 }
 
 #---------[ Scheduled Tasks ]---------
 try {
-    Write-Host "Gathering scheduled tasks information" -ForegroundColor Cyan;
+    Write-ShellMessage -Message "Gathering scheduled tasks information" -Type INFO;
     Add-HostInformation -Name ScheduledTasks -Value $(Get-ScheduledTasksList);
 }
 catch {
-    Write-Host "Error gathering scheduled tasks information: " + $Error[0].Exception.Message -ForegroundColor Red;
+    Write-ShellMessage -Message "Error gathering scheduled tasks information" -Type ERROR -ErrorRecord $Error[0];
 }
 
 #---------[ Domain Controller ]---------
 try {
-    if (($HostInformation.RolesAndFeatures | ?{$_.Name -eq "AD-Domain-Services"}).Installed) {
-        
-        Write-Host "Gathering Active Directory Domain Controller information" -ForegroundColor Cyan;
+    if (($HostInformation.RolesAndFeatures | ?{$_.Name -eq "AD-Domain-Services"}).Installed) {      
+        Write-ShellMessage -Message "Gathering Active Directory Domain Controller information" -Type INFO;
 
         # Get the ActiveDirectory module imported
         Import-Module ActiveDirectory;
@@ -478,14 +516,13 @@ try {
     };
 }
 catch {
-    Write-Host "Error gathering Active Directory Domain Controller information: " + $Error[0].Exception.Message -ForegroundColor Red;
+    Write-ShellMessage -Message "Error gathering Active Directory Domain Controller information" -Type ERROR -ErrorRecord $Error[0];
 }
 
 #---------[ Database ]---------
 try {
     if (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL") {
-        
-        Write-Host "Gathering SQL Server information" -ForegroundColor Cyan;
+        Write-ShellMessage -Message "Gathering SQL Server information" -Type INFO;
 
         # Get the SQLPS module imported, trap just in case it's not installed properly
         try {
@@ -528,14 +565,13 @@ try {
     };
 }
 catch {
-    Write-Host "Error gathering SQL Server information: " + $Error[0].Exception.Message -ForegroundColor Red;
+    Write-ShellMessage -Message "Error gathering SQL Server information" -Type ERROR -ErrorRecord $Error[0];
 }
 
 #---------[ Apache Virtual Hosts ]---------
 try {
     if (Get-Service | ?{$_.Name -like "*Apache*" -and $_.Name -notlike "*Tomcat*"}) {
-        
-        Write-Host "Gathering Apache Virtual Host information" -ForegroundColor Cyan;
+        Write-ShellMessage -Message "Gathering Apache Virtual Host information" -Type INFO;
 
         # Get the Apache install and httpd.exe paths
         $ApachePath = $((Get-ChildItem "C:\Program Files (x86)\*Apache*").FullName);
@@ -551,13 +587,13 @@ try {
     }
 }
 catch {
-    Write-Host "Error gathering Apache Virtual Host information: " + $Error[0].Exception.Message -ForegroundColor Red;
+    Write-ShellMessage -Message "Error gathering Apache Virtual Host information" -Type ERROR -ErrorRecord $Error[0];
 }
 
 #---------[ Tomcat Web Applications ]---------
 try {
     if (Get-Service | ?{$_.Name -like "*Tomcat*"}) {
-        Write-Host "Gathering Tomcat application information" -ForegroundColor Cyan;
+        Write-ShellMessage -Message "Gathering Tomcat application information" -Type INFO;
 
         # Add a collection containing our Tomcat tree to the hostinfo object
         $TomcatApplications = $((New-Object System.Net.WebClient).DownloadString("http://localhost:8080/manager/text/list").Split("`r`n"));
@@ -565,9 +601,9 @@ try {
     }
 }
 catch {
-    Write-Host "Error gathering Tomcat application information: " + $Error[0].Exception.Message -ForegroundColor Red;
+    Write-ShellMessage -Message "Error gathering Tomcat application information" -Type ERROR -ErrorRecord $Error[0];
 }
 
 #---------[ Return ]---------
-Write-Host "Gathering completed" -ForegroundColor Green;
+Write-ShellMessage -Message "Gathering completed" -Type SUCCESS;
 return $HostInformation;

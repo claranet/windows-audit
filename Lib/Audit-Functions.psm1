@@ -238,3 +238,42 @@ Function Invoke-PSExecCommand {
     # And return the goods
     return $Output;
 }
+
+# Writes pretty log messages
+Function Write-ShellMessage {
+    [Cmdletbinding()]
+    Param(
+        [Parameter(Mandatory=$True)]
+        [ValidateNotNullOrEmpty()]
+        [String]$Message,
+        [Parameter(Mandatory=$True)]
+        [ValidateSet("DEBUG","INFO","WARNING","SUCCESS","ERROR")]
+        [String]$Type,
+        [Parameter(Mandatory=$False)]
+        [ValidateNotNullOrEmpty()]
+        [System.Management.Automation.ErrorRecord]$ErrorRecord
+    )
+
+    # Get a datestamp sorted
+    $DateStamp = Get-Date -Format "dd/MM/yy HH:mm:ss";
+
+    # Build our message output
+    $Output = [String]::Format("[{0}] [{1}]: {2}",$DateStamp,$Type,$Message);
+    
+    # If we have an ErrorRecord attach the message at the end
+    if ($ErrorRecord) {
+        $Output += ": $($ErrorRecord.Exception.Message)";
+    }
+
+    # Swiffy to determine colour
+    Switch ($Type) {
+        "DEBUG"   {$C = "Magenta"};
+        "INFO"    {$C = "Cyan"};
+        "WARNING" {$C = "Yellow"};
+        "SUCCESS" {$C = "Green"};
+        "ERROR"   {$C = "Red"};
+    }
+
+    # And write out
+    Write-Host $Output -ForegroundColor $C;
+}
