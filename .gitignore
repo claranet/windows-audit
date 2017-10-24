@@ -1,5 +1,9 @@
 # Vagrant test box data
 .vagrant
+vagrantfile
 
 # Output folder
 Output
+
+# Test script
+Scripts\Test-WindowsAudit.ps1
