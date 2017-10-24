@@ -604,6 +604,15 @@ catch {
     Write-ShellMessage -Message "Error gathering Tomcat application information" -Type ERROR -ErrorRecord $Error[0];
 }
 
+#---------[ Windows Services ]---------
+try {
+    Write-ShellMessage -Message "Gathering Windows service information" -Type INFO;
+    Add-HostInformation -Name WindowsServices -Value $(Get-WMIObject -Class "Win32_Service" | Select -Property *);
+}
+catch {
+    Write-ShellMessage -Message "Error gathering Windows service information" -Type ERROR -ErrorRecord $Error[0];
+}
+
 #---------[ Return ]---------
 Write-ShellMessage -Message "Gathering completed" -Type SUCCESS;
 return $HostInformation;
