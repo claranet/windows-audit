@@ -1,5 +1,6 @@
 Filters
 ---------
+
 Filters are a way of taking the original gathered data and presenting different elements in different ways. The example filter provided will output the below table of data, splitting out each section into an individual Excel worksheet.
 
 The filter needs to be defined as a single `PSCustomObject` with named key value pairs indicating the name (key) of the section you wish to create, along with the actual content (value) of that section. If the value object is enumerable, you can use the subexpression `$( $subexpression )` syntax to enumerate the property into a pipeline and capture (or filter) the named values you wish to obtain from the object. You can see an example of this in action in the `.\Filters\Example.ps1` file.
