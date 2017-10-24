@@ -23,7 +23,7 @@
     
         (hostname|ip):(port)|(protocol)
     
-    An example of this file can be found in `..\Input\ExampleComputerList.psv`.
+    An example of this file can be found here `..\Examples\Computer-List-Example.psv`.
 
     .PARAMETER Computers [String[]]
     String array of computers to run this script on. If the computer value is 

@@ -20,9 +20,9 @@ There are a variety of sub scripts and modules however for simplicity the execut
 
 ##### Mandatory Parameters
 
- - `InputFile` - The path to a Pipe Separated Values file which will be parsed for target information on what instances to harvest audit data from. The per-line format should be `(hostname|ip):(port)|(protocol)`. An example of this file can be found in `.\Input\ExampleComputerList.psv`.
+ - `InputFile` - The path to a Pipe Separated Values file which will be parsed for target information on what instances to harvest audit data from. The per-line format should be `(hostname|ip):(port)|(protocol)`. An example of this file can be found here `.\Examples\Computer-List-Example.psv`.
 
-**or**
+     **or**
 
  - `Computers` - String array of computers to run this script on. If the computer value is a `host:port` or `ip:port` combination the specified port will be used for WinRM (only).
 
