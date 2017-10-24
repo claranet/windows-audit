@@ -8,17 +8,17 @@ The serialised data for servers will remain cached until another gathering opera
 
 Prerequisites
 ---------
-#### Calling Client
+##### Calling Client
 Connections over WinRM will require the [Windows Management Framework](https://support.microsoft.com/en-gb/help/968929/windows-management-framework-windows-powershell-2-0--winrm-2-0--and-bi) v2 as a minimum and a Windows credential that is valid on the target machine. For machines which have not got WinRM installed, you can use [PSExec](https://docs.microsoft.com/en-us/sysinternals/downloads/psexec) instead.
 
-#### Target Server
+##### Target Server
 Connections over WinRM will require the [Windows Management Framework](https://support.microsoft.com/en-gb/help/968929/windows-management-framework-windows-powershell-2-0--winrm-2-0--and-bi) v2 as a minimum with TCP port `5985` allowed from the calling client. Alternatively if using PSExec TCP port `445` needs to be opened. Powershell v2 and above has been verified, v1 has not been tested.
 
 Usage
 ---------
 There are a variety of sub scripts and modules however for simplicity the execution has been consolodated into a single script; `Invoke-WindowsAudit.ps1`.
 
-#### Mandatory Parameters
+##### Mandatory Parameters
 
  - `InputFile` - The path to a Pipe Separated Values file which will be parsed for target information on what instances to harvest audit data from. The per-line format should be `(hostname|ip):(port)|(protocol)`. An example of this file can be found in `.\Input\ExampleComputerList.psv`.
 
@@ -26,7 +26,7 @@ There are a variety of sub scripts and modules however for simplicity the execut
 
  - `Computers` - String array of computers to run this script on. If the computer value is a `host:port` or `ip:port` combination the specified port will be used for WinRM (only).
 
-#### Optional Parameters
+##### Optional Parameters
 
  - `Protocol` - The protocol to use for the target computers specified in the `$Computers` parameter. Valid options are `WinRM`|`PSExec` defaulting to `WinRM` if not specified.
 
@@ -38,7 +38,7 @@ There are a variety of sub scripts and modules however for simplicity the execut
 
  - `Filter` - The name of the filter you wish to apply to the dataset. Must exist in the .\Filters directory with a .ps1 file extension.
 
-#### Examples
+##### Examples
 
 This example will invoke an audit data gathering on the computers specified in the `MyComputerList.psv` file using the `$MyPSCredential` credential for machines targeted with WinRM, and will then compile the data into an Excel spreadsheet using the `Example` filter.
 ```PowerShell
