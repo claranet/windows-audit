@@ -75,39 +75,49 @@
 
 #>
 
-[CmdletBinding()]
+[CmdletBinding(DefaultParameterSetName='InputFile')]
 Param(
     # Path to a PSV file containing the list of computers|protocols to connect to
-    [Parameter(Mandatory=$False)]
+    [Parameter(Mandatory=$True,ParameterSetName="InputFile")]
     [ValidateScript({$(Test-Path $_)})]
     [String]$InputFile,
 
     # String[] of computers to execute this script on
-    [Parameter(Mandatory=$False)]
+    [Parameter(Mandatory=$True,ParameterSetName="ComputerList")]
     [ValidateNotNullOrEmpty()]
     [String[]]$Computers,
 
     # Protocol to use for connecting to the target machine
     [Parameter(Mandatory=$False)]
+    [Parameter(ParameterSetName="InputFile")]
+    [Parameter(ParameterSetName="ComputerList")]
     [ValidateSet("WinRM","PSExec")]
     [String]$Protocol = "WinRM",
 
     # PSCredential that will be used for WinRM to connect to the target machines
     [Parameter(Mandatory=$False)]
+    [Parameter(ParameterSetName="InputFile")]
+    [Parameter(ParameterSetName="ComputerList")]
     [ValidateNotNullOrEmpty()]
     [PSCredential]$PSCredential,
 
     # Override for the ExportDepth to CLI XML
     [Parameter(Mandatory=$False)]
+    [Parameter(ParameterSetName="InputFile")]
+    [Parameter(ParameterSetName="ComputerList")]
     [ValidateRange(2,8)]
     [Int]$SerialisationDepth = 5,
 
     # This switch tells the script to compile the data once gathered
     [Parameter(Mandatory=$False)]
+    [Parameter(ParameterSetName="InputFile")]
+    [Parameter(ParameterSetName="ComputerList")]
     [Switch]$Compile,
 
     # The filter to apply to the dataset
     [Parameter(Mandatory=$False)]
+    [Parameter(ParameterSetName="InputFile")]
+    [Parameter(ParameterSetName="ComputerList")]
     [ValidateNotNullOrEmpty()]
     [String]$Filter
 )
