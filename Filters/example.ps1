@@ -6,7 +6,7 @@ Param(
 )
 
 # Import the functions module
-Import-Module ".\Lib\Audit-Functions.psm1" -DisableNameChecking;
+Import-Module ".\_Lib\Audit-Functions.psm1" -DisableNameChecking;
 
 <# 
     The filter needs to be defined as a single PSCustomObject, with named key/value
@@ -183,11 +183,16 @@ $Output.PSObject.Properties | Sort -Property Name | %{
     # Work out the export file path
     $FilePath = "$ExportFolder\$($HostInformation.OS.CSName).xlsx";
 
+    # Check if file exists and remove it
+    if (Test-Path $FilePath) {
+        Remove-Item $FilePath -Force;
+    }
+
     # Export to File
     if ($SectionValue) {
-        $SectionValue | .\Lib\Export-XLSX.ps1 -Path $FilePath -WorksheetName $SectionName -Append;
+        $SectionValue | .\_Lib\Export-XLSX.ps1 -Path $FilePath -WorksheetName $SectionName -Append;
     }
     else {
-        "(None)" | .\Lib\Export-XLSX.ps1 -Path ".\Windows-Audit-Output.csv" -WorksheetName $SectionName -Append;
+        "(None)" | .\_Lib\Export-XLSX.ps1 -Path ".\Windows-Audit-Output.csv" -WorksheetName $SectionName -Append;
     }
 }

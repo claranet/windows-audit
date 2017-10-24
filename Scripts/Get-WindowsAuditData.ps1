@@ -95,7 +95,7 @@ $WarningTrigger = $False;
 # Import our functions from the lib module
 try {
     Write-ShellMessage -Message "Importing functions library" -Type INFO;
-    Import-Module ".\Lib\Audit-Functions.psm1" -DisableNameChecking;
+    Import-Module ".\_Lib\Audit-Functions.psm1" -DisableNameChecking;
 }
 catch {
     Write-ShellMessage -Message "There was a problem importing the functions library" -Type ERROR -ErrorRecord $_;
@@ -108,7 +108,7 @@ $Output = @();
 # Scriptblock to execute imported from file
 try {
     Write-ShellMessage -Message "Importing audit script" -Type INFO;
-    $ScriptBlockPath = ".\Lib\Audit-Scriptblock.ps1";
+    $ScriptBlockPath = ".\_Lib\Audit-Scriptblock.ps1";
     [ScriptBlock]$ScriptBlock = [ScriptBlock]::Create($(Get-Content $ScriptBlockPath | Out-String));
 }
 catch {

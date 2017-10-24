@@ -120,7 +120,7 @@ Function Write-ShellMessage {
     $DateStamp = Get-Date -Format "dd/MM/yy HH:mm:ss";
 
     # Build our message output
-    $Output = [String]::Format("[{0}] [{1}]: {2}",$DateStamp,$env:COMPUTERNAME,$Message);
+    $Output = [String]::Format("[{0}] [{1}:{2}]: {3}",$DateStamp,$env:COMPUTERNAME,$Type,$Message);
     
     # If we have an ErrorRecord attach the message at the end
     if ($ErrorRecord) {
