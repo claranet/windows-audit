@@ -34,9 +34,9 @@ There are a variety of sub scripts and modules however for simplicity the execut
 
  - `SerialisationDepth` - Override value for the serialisation depth to use when this script is using the `System.Management.Automation.PSSerializer` class. Defaults to `5` and range is limited to `2..8`; as anything less than `2` is useless, anything greater than `8` will generate a _very_ large (multi-gb) file and probably crash the targeted machine. Tweak this value only if the data you want is nested so low in the dataset it's not being enumerated in the output.
 
- - `Compile` - This switch when present tells the script to do a compilation of the data to an Excel spreadsheet. If this is supplied; the -Filter parameter _must also_ be supplied
+ - `Compile` - This switch when present tells the script to do a compilation of the data to an Excel spreadsheet. If this is supplied; the `Filter` parameter _must also_ be supplied
 
- - `Filter` - The name of the filter you wish to apply to the dataset. Must exist in the .\Filters directory with a .ps1 file extension.
+ - `Filter` - The name of the filter you wish to apply to the dataset. Must exist in the `.\Filters` directory with a `.ps1` file extension. An example filter has been supplied with this solution with the name of `Example`.
 
 ##### Examples
 
@@ -60,13 +60,121 @@ This example will invoke an audit data gathering on the computers specified in t
 
 Filters
 ---------
-_wip_
+Filters are a way of taking the original gathered data and presenting different elements in different ways. The example filter provided will output the below table of data, splitting out each section into an individual Excel worksheet.
 
-Output format
+The filter needs to be defined as a single `PSCustomObject` with named key value pairs indicating the name (key) of the section you wish to create, along with the actual content (value) of that section. If the value object is enumerable, you can use the subexpression `$( $subexpression )` syntax to enumerate the property into a pipeline and capture (or filter) the named values you wish to obtain from the object. You can see an example of this in action in the `.\Filters\Example.ps1` file.
+
+The `$HostInformation` parameter that gets passede into the filter can be accessed using dot notation to obtain the properties you seek. For a full property map please see the [properties map]() below.
+
+##### System Information (key:value)
+	- HostName
+	- Domain Name
+	- IPv4 Address
+	- OS
+	- Uptime
+	- Region/Locale
+	- Timezone
+	- System Type
+	- Location
+	- WSUS Server
+	- PowerShell Version
+	- .NET Version
+	- CPU
+	- CPU Use % (Total)
+	- Total Physical Memory
+	- Available Physical Memory
+	- Virtual Memory Max Size
+	- Virtual Memory Available
+	- Virtual Memory InUse
+	
+##### Network Interfaces (table)
+	- HostName
+	- Description
+	- Adapter Index
+	- IPv4 Address
+	- IPv6 Address
+	- Domain Name
+	- Subnet Mask
+	- Gateway
+	- DNS Servers
+	
+##### Firewall Rules (table)
+	- HostName
+	- Name
+	- Description
+	- Local Ports
+	- Remote Ports
+	- Local Addresses
+	- Remote Addresses
+	- Direction
+	
+##### TLS Certificates (table)
+	- HostName
+	- Friendly Name
+	- Expires
+	- Thumbprint
+	- Has Private Key
+	- Issuer
+	
+##### Storage Disks (table)
+	- HostName
+	- Disk Type
+	- Interface Type
+	- Media Type
+	- Size
+	
+##### Storage Volumes (table)
+	- HostName
+	- Caption
+	- Mount Point
+	- Type
+	- Filesystem
+	- Boot Volume
+	- System Volume
+	- Indexing Enabled
+	- Page file present
+	- Compressed
+	- Free Space
+	- Used Space
+	- Total Size
+	
+##### Shared Folders and Drives (table)
+	- HostName
+	- Shared Folder Path
+	- Shared Folder Name
+	- Shared Folder Description
+	- Mounted Drive Path
+	- Mounted Drive Letter
+	
+##### Applications (table)
+	- HostName
+	- Display Name
+	- Display Version
+	- Publisher
+	- Install Date
+	- Install Type
+	
+##### Windows Features (table)
+	- HostName
+	- Display Name
+	- Name
+	- Feature Type
+	- Path
+	- Subfeatures
+	
+##### Scheduled Tasks (table)
+	- HostName
+	- Name
+	- Enabled
+	- Actions
+	- Last Run Time
+	- Last Result
+
+Full property map
 ---------
 _wip_
 
-Data gathering map
+Output format
 ---------
 _wip_
 
