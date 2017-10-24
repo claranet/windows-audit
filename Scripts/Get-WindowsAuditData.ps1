@@ -51,8 +51,6 @@
     This will execute the script on all three of the named computers, using the
     specified ports for WinRM on latter two and the current user's identity.
 
-    .TODO# Need to add error handling and output logging
-
     #requires -version 2
 #>
 
@@ -92,18 +90,19 @@ $ErrorActionPreference = "Stop";
 # Trigger so we know something went wrong during the process
 $WarningTrigger = $False;
 
+# Output object for holding data to write to disk
+$Output = @();
+
+#---------[ Imports ]---------
+
 # Import our functions from the lib module
 try {
-    Write-ShellMessage -Message "Importing functions library" -Type INFO;
     Import-Module ".\_Lib\Audit-Functions.psm1" -DisableNameChecking;
 }
 catch {
     Write-ShellMessage -Message "There was a problem importing the functions library" -Type ERROR -ErrorRecord $_;
     Exit(1);
 }
-
-# Output object for holding data to write to disk
-$Output = @();
 
 # Scriptblock to execute imported from file
 try {
@@ -115,6 +114,8 @@ catch {
     Write-ShellMessage -Message "There was a problem importing the audit script" -Type ERROR -ErrorRecord $_;
     Exit(1);
 }
+
+#---------[ Extended Validation ]---------
 
 # Check if we recieved a PSV file with the computers
 if ($InputFile) {
@@ -164,6 +165,8 @@ else {
     Write-ShellMessage -Message "Parsing supplied list of computers" -Type INFO;
     $HostCount = $Computers.Count;
 }
+
+#---------[ Main() ]---------
 
 # Loop to execute on targeted computers
 $C = 0;
@@ -267,7 +270,8 @@ $Output | %{
     }
 }
 
-# Fin
+#---------[ Fin ]---------
+
 if ($WarningTrigger) {
     $FinalMessage = "Audit data gathering for $HostCount computers has completed with warnings";
     Write-ShellMessage -Message $FinalMessage -Type WARNING;

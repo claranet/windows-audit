@@ -15,8 +15,6 @@
     This will parse the entire contents of the RawData directory, generating
     the output CSV files for compliation using the 'Example' filter.
 
-    .TODO# Need to add error handling and output logging
-
     #requires -version 2
 #>
 
@@ -28,22 +26,79 @@ Param(
     [String]$Filter
 )
 
-# Get the filter path
-$FilterPath = ".\Filters\$Filter.ps1";
+#---------[ Global Declarations ]---------
 
-if (!(Test-Path $FilterPath)) {
-    throw "Selected filter does not exist at '$FilterPath'";
-    break;
+# EAP to stop so we can trap errors in catch blocks
+$ErrorActionPreference = "Stop";
+
+# Trigger so we know something went wrong during the process
+$WarningTrigger = $False;
+
+#---------[ Imports ]---------
+
+# Import our functions from the lib module
+try {
+    Import-Module ".\_Lib\Audit-Functions.psm1" -DisableNameChecking;
+}
+catch {
+    Write-ShellMessage -Message "There was a problem importing the functions library" -Type ERROR -ErrorRecord $_;
+    Exit(1);
 }
 
+#---------[ Extended Validation ]---------
+
+# Test whether the filter exists and get the path
+try {
+    $FilterPath = ".\Filters\$Filter.ps1";
+    if (!(Test-Path $FilterPath)) {
+        throw [System.IO.FileNotFoundException] "The file '$FilterPath' does not exist";
+    }
+}
+catch {
+    Write-ShellMessage -Message "There was a problem validating the selected filter" -Type ERROR -ErrorRecord $_;
+    Exit(1);
+}
+
+#---------[ Main() ]---------
+
 # Get a list of the CLI XML files to process
-$CliXmlFilesToProcess = Get-ChildItem ".\Output\RawData\*cli.xml";
+try {
+    Write-ShellMessage -Message "Getting list of CLI XML files to process" -Type INFO;
+    $CliXmlFilesToProcess = Get-ChildItem ".\Output\RawData\*cli.xml";
+}
+catch {
+    Write-ShellMessage -Message "There was a problem getting the list of CLI XML files to process" -Type ERROR -ErrorRecord $_;
+    Exit(1);
+}
 
 # Enumerate the collection
 $CliXmlFilesToProcess | %{
-    # Get the CLI XML back into a PSCustomObject
-    $HostInformation = Import-Clixml -Path $_.FullName;
+    try {
+        # Get the filename and let the user know what we're doing
+        $FileName = $_.Name;
+        Write-ShellMessage -Message "Processing file '$FileName'" -Type INFO;
 
-    # And pass the result on to the correct filter for execution
-    & $FilterPath -HostInformation $HostInformation;
+        # Get the CLI XML back into a PSCustomObject
+        $HostInformation = Import-Clixml -Path $_.FullName;
+        
+        # And pass the result on to the correct filter for execution
+        & $FilterPath -HostInformation $HostInformation;
+    }
+    catch {
+        Write-ShellMessage -Message "There was a problem processing file '$FileName'" -Type ERROR -ErrorRecord $_;
+        $WarningTrigger = $True;
+    }
 }
+
+#---------[ Fin ]---------
+
+if ($WarningTrigger) {
+    $FinalMessage = "Audit data compliation has completed with warnings";
+    Write-ShellMessage -Message $FinalMessage -Type WARNING;
+}
+else {
+    $FinalMessage = "Audit data compliation has completed successfully";
+    Write-ShellMessage -Message $FinalMessage -Type SUCCESS;
+}
+
+Exit;
