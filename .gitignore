@@ -5,6 +5,3 @@ vagrantfile
 # Output data
 Output
 Windows-Audit-Data.xlsx
-
-# Test script
-Scripts/Test-WindowsAudit.ps1

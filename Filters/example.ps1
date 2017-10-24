@@ -48,7 +48,7 @@ $WarningTrigger = $False;
 # Import our functions from the lib module
 try {
     Write-ShellMessage -Message "Importing functions library" -Type INFO;
-    Import-Module ".\_Lib\Audit-Functions.psm1" -DisableNameChecking;
+    Import-Module ".\Scripts\Audit-Functions.psm1" -DisableNameChecking;
 }
 catch {
     Write-ShellMessage -Message "There was a problem importing the functions library" -Type ERROR -ErrorRecord $_;
@@ -234,7 +234,7 @@ $Filter.PSObject.Properties | Sort -Property Name | %{
         # Export to File
         if ($SectionValue) {
             Write-ShellMessage -Message "Exporting '$SectionName' to '$FilePath'" -Type INFO;
-            $SectionValue | .\_Lib\Export-XLSX.ps1 -Path $FilePath -WorksheetName $SectionName -Append;
+            $SectionValue | .\Scripts\Export-XLSX.ps1 -Path $FilePath -WorksheetName $SectionName -Append;
         }
         else {
             Write-ShellMessage -Message "Section '$SectionName' is null; skipping" -Type WARNING;

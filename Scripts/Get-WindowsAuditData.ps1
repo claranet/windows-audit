@@ -91,7 +91,7 @@ $Output = @();
 
 # Import our functions from the lib module
 try {
-    Import-Module ".\_Lib\Audit-Functions.psm1" -DisableNameChecking;
+    Import-Module ".\Scripts\Audit-Functions.psm1" -DisableNameChecking;
 }
 catch {
     Write-ShellMessage -Message "There was a problem importing the functions library" -Type ERROR -ErrorRecord $_;
@@ -101,7 +101,7 @@ catch {
 # Scriptblock to execute imported from file
 try {
     Write-ShellMessage -Message "Importing audit script" -Type INFO;
-    $ScriptBlockPath = ".\_Lib\Audit-Scriptblock.ps1";
+    $ScriptBlockPath = ".\Scripts\Audit-Scriptblock.ps1";
     [ScriptBlock]$ScriptBlock = [ScriptBlock]::Create($(Get-Content $ScriptBlockPath | Out-String));
 }
 catch {

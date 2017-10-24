@@ -135,7 +135,7 @@ Click on the WMI class name for a full list of methods and properties from the M
 | [Win32_Printer](https://msdn.microsoft.com/en-us/library/aa394363(v=vs.85).aspx) | `$_.Peripherals.Printers` |
 | [Win32_Service](https://msdn.microsoft.com/en-us/library/aa394418(v=vs.85).aspx) | `$_.WindowsServices` |
 
-_(Note: the `Win32_USBControllerDevice` class is enumerated by the `[Wmi]$_.Dependent` property in order to obtain the connected devices. If you are using certain types of USB hub to chain multiple devices your output may not be captured. In this circumstance you can modify line `#286` in the `.\_Lib\Audit-Scriptblock.ps1` file to further enumerate this.)_
+_(Note: the `Win32_USBControllerDevice` class is enumerated by the `[Wmi]$_.Dependent` property in order to obtain the connected devices. If you are using certain types of USB hub to chain multiple devices your output may not be captured. In this circumstance you can modify line `#286` in the `.\Scripts\Audit-Scriptblock.ps1` file to further enumerate this.)_
 
 #### Other Available Properties
 

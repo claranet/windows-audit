@@ -2,7 +2,7 @@ Windows-Audit
 ---------
 Scripts for auditing Windows Server 2003+ servers.
 
-These scripts will gather a vast array of information about one or many targeted Windows servers and serialise the information to disk. The scripts will then compile the data into an Excel spreadsheet for review using a _filter_ to report on only the desired data.
+These scripts will gather a vast array of information about one or many targeted Windows servers and serialise the information to disk. The scripts will then compile the data into an Excel spreadsheet for review using a _filter_ to report on only the desired data. More information on Filters can be found in the dedicated readme file located at `.\Filters\Filters.md`.
 
 The serialised data for servers will remain cached until another gathering operation is run, at which point the data will be refreshed. This allows you to run a single gathering, and reparse the same data into a variety of different views.
 
@@ -36,33 +36,34 @@ There are a variety of sub scripts and modules however for simplicity the execut
 
  - `Compile` - This switch when present tells the script to do a compilation of the data to an Excel spreadsheet. If this is supplied; the `Filter` parameter _must also_ be supplied.
 
- - `CompileOnly` - This switch when present tells the script to do a compilation of the data to an Excel spreadsheet. If this is supplied; the `Filter` parameter _must also_ be supplied.
+ - `CompileOnly` - This switch when present tells the script to do a compilation of the cached data to an Excel spreadsheet. If this is supplied; the `Filter` parameter _must also_ be supplied.
 
  - `Filter` - The name of the filter you wish to apply to the dataset. Must exist in the `.\Filters` directory with a `.ps1` file extension. An example filter has been supplied with this solution with the name of `Example`.
 
 ##### Examples
 
-This example will invoke an audit data gathering on the computers specified in the `MyComputerList.psv` file using the `$MyPSCredential` credential for machines targeted with WinRM, and will then compile the data into an Excel spreadsheet using the `Example` filter.
+This example will invoke an audit data gathering on the computers specified in the `ExampleComputerList.psv` file using the `$MyPSCredential` credential for machines targeted with WinRM, and will then compile the data into an Excel spreadsheet using the `Example` filter.
 ```PowerShell
-    .\Invoke-WindowsAudit.ps1 `
-            -InputFile ".\Input\MyComputerList.psv" `
-            -PSCredential $MyPSCredential `
-            -Compile `
-            -Filter "Example";
+    .\Invoke-WindowsAudit.ps1 -InputFile ".\ExampleComputerList.psv" -PSCredential $MyPSCredential -Compile -Filter "Example";
 ```
 
 <br />
 
 This example will invoke an audit data gathering on the computers specified in the Computers parameter using the PSExec protocol. Because the `Compile` switch has not been specified, no further processing will take place after the data has been gathered.
 ```PowerShell
-.\Invoke-WindowsAudit.ps1 `
-        -Computers "dev-test-01","dev-test-02" `
-        -Protocol PSExec;
+.\Invoke-WindowsAudit.ps1 -Computers "dev-test-01","dev-test-02" -Protocol PSExec;
+```
+
+<br />
+
+This example will invoke a compilation against existing cached data using the `Example` filter.
+```PowerShell
+.\Invoke-WindowsAudit.ps1 -CompileOnly -Filter "Example";
 ```
 
 Output Example
 ---------
-See the `Windows-Audit-Data-Example.xlsx` file in this repo.
+See the `Output-Example.xlsx` file in the `Examples` folder.
 
 Future Development
 ---------
