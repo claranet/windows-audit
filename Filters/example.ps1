@@ -233,11 +233,11 @@ $Filter.PSObject.Properties | Sort -Property Name | %{
 
         # Export to File
         if ($SectionValue) {
-            Write-ShellMessage -Message "Exporting '$SectionName' to '$FilePath'" -Type INFO;
+            Write-ShellMessage -Message "Exporting '$SectionName' to '$FilePath' for host '$HostName'" -Type INFO;
             $SectionValue | .\Scripts\Export-XLSX.ps1 -Path $FilePath -WorksheetName $SectionName -Append;
         }
         else {
-            Write-ShellMessage -Message "Section '$SectionName' is null; skipping" -Type WARNING;
+            Write-ShellMessage -Message "Section '$SectionName' for host '$HostName' is null; skipping" -Type WARNING;
         }
     }
     catch {
