@@ -205,11 +205,11 @@ Function Invoke-PSExecCommand {
     
     # Then tune a few properties we need
     $ScriptPath = $ScriptFileObject.Directory.FullName;
-    $ShareName  = ($ScriptFileObject.BaseName -replace "[^a-zA-Z]","") + "$";
+    $ShareName  = ($ScriptFileObject.BaseName -replace '[^a-zA-Z]','') + '$';
     $ScriptFile = $ScriptFileObject.Name;
 
     # Then we need to share the script path with the script name we parsed
-    [Void](New-SMBShare –Name $ShareName –Path $ScriptPath -FullAccess "Everyone");
+    [Void](New-SMBShare -Name $ShareName -Path $ScriptPath -FullAccess "Everyone");
 
     # Get the command built; Unrestricted policy is for PSv2 compatibility, the scope is this execution only
     $Command = @(
