@@ -229,7 +229,7 @@ $Filter.PSObject.Properties | Sort -Property Name | %{
 
         # Get the hostname for error writing and define the output file
         $HostName = $HostInformation.OS.CSName;
-        $FilePath = ".\Windows-Audit-Data.xlsx";
+        $FilePath = (Resolve-Path $($MyInvocation.PSScriptRoot + "\..\")).Path + "Windows-Audit-Data.xlsx";
 
         # Export to File
         if ($SectionValue) {
