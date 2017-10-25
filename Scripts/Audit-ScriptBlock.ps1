@@ -83,22 +83,28 @@ Function Get-ScheduledTasksList {
 # Returns a string indicating whether the machine is running on Azure or On-Prem
 Function Locate-WindowsMachine {
 
-    # Enumerate all the network adapters that have DHCP enabled
-    Get-WmiObject -Class "Win32_NetworkAdapterConfiguration" -Filter "IPEnabled = 'True' AND DHCPEnabled ='True'" | Select SettingID | %{
-        # Get the reg path into a variable for legibility
-        $RegPath = "HKLM:\SYSTEM\CurrentControlSet\services\Tcpip\Parameters\Interfaces\$($_.SettingID)";
+    try {
+        # Enumerate all the network adapters that have DHCP enabled
+        Get-WmiObject -Class "Win32_NetworkAdapterConfiguration" -Filter "IPEnabled = 'True' AND DHCPEnabled ='True'" | Select SettingID | %{
+            # Get the reg path into a variable for legibility
+            $RegPath = "HKLM:\SYSTEM\CurrentControlSet\services\Tcpip\Parameters\Interfaces\$($_.SettingID)";
 
-        # Get the DHCP options set
-        $DHCP = Get-ItemProperty -Path $RegPath -Name DhcpInterfaceOptions;
+            # Get the DHCP options set
+            $DHCP = Get-ItemProperty -Path $RegPath -Name DhcpInterfaceOptions;
 
-        # Check for the magic Azure only DHCP option
-        if ($DHCP.DHCPInterfaceOptions -contains 245) {
-            return "Azure";
+            # Check for the magic Azure only DHCP option
+            if ($DHCP.DHCPInterfaceOptions -contains 245) {
+                return "Azure";
+            }
         }
-    }
 
-    # If we get this far we're on prem
-    return "On-Prem";
+        # If we get this far we're on prem
+        return "On-Prem";
+    }
+    catch {
+        # Seems a bit flippant but if this regkey doesn't exist it's < 2008, not Azure.
+        return "On-Prem";
+    }
 }
 
 # Writes pretty log messages
@@ -138,6 +144,93 @@ Function Write-ShellMessage {
 
     # And write out
     Write-Host $Output -ForegroundColor $C;
+}
+
+# Alternative firewall rule gathering for Server 2003
+Function Get-NetshFireWallRule  {
+    
+    # Get our return array sorted
+    $Return = @();
+
+    # Get a new ordered hash in place so we can add values easily
+    # Nullify the values we can't get from netsh advfirewall
+    $Hash = @{
+        Description                 = $Null;
+        ApplicationName             = $Null;
+        serviceName                 = $Null;
+        IcmpTypesAndCodes           = $Null;
+        Interfaces                  = $Null;
+        InterfaceTypes              = $Null;
+        Action                      = $Null;
+        EdgeTraversalOptions        = $Null;
+        LocalAppPackageId           = $Null;
+        LocalUserOwner              = $Null;
+        LocalUserAuthorizedList     = $Null;
+        RemoteUserAuthorizedList    = $Null;
+        RemoteMachineAuthorizedList = $Null;
+        SecureFlags                 = $Null;
+    };
+        
+    # Enumerate the output from netsh advfirewall
+    ForEach ($Rule in $(netsh advfirewall firewall show rule name="all")) {
+
+        # If the line isn't a separator, parse and add
+        if ($Rule -notmatch "----------------------------------------------------------------------"){
+            switch -Regex ($Rule){
+                '^Rule Name:\s+(?<RuleName>.*$)'   {$Hash.Name            = $Matches.RuleName;Break}
+                '^Enabled:\s+(?<Enabled>.*$)'      {$Hash.Enabled         = $Matches.Enabled;Break}
+                '^Direction:\s+(?<Direction>.*$)'  {$Hash.Direction       = $Matches.Direction;Break}
+                '^Profiles:\s+(?<Profiles>.*$)'    {$Hash.Profiles        = $Matches.Profiles;Break}
+                '^Grouping:\s+(?<Grouping>.*$)'    {$Hash.Grouping        = $Matches.Grouping;Break}
+                '^LocalIP:\s+(?<LocalIP>.*$)'      {$Hash.LocalAddresses  = $Matches.LocalIP;Break}
+                '^RemoteIP:\s+(?<RemoteIP>.*$)'    {$Hash.RemoteAddresses = $Matches.RemoteIP;Break}
+                '^Protocol:\s+(?<Protocol>.*$)'    {$Hash.Protocol        = $Matches.Protocol;Break}
+                '^LocalPort:\s+(?<LocalPort>.*$)'  {$Hash.LocalPorts      = $Matches.LocalPort;Break}
+                '^RemotePort:\s+(?<RemotePort>.*$)'{$Hash.RemotePorts     = $Matches.RemotePort;Break}
+                '^Edge traversal:\s+(?<Edge_traversal>.*$)' {
+                    $Hash.EdgeTraversal = $Matches.Edge_traversal;
+                    $Return += $(New-Object psobject -Property $Hash);
+                    Break;
+                }
+            }
+        }
+    }
+    
+    # And return our array
+    return $return
+}
+
+# Gets enabled firewall zones from netsh
+Function Get-NetshFireWallProfile {
+
+    # Get our netsh command and return object
+    $NETSH    = netsh advfirewall show allprofiles;
+    $Profiles = @();
+
+    # Work out which are enabled
+    if ($Domain = $NETSH | Select-String "Domain Profile" -Context 2 | Out-String) {
+        if (($Domain.Substring($Domain.Length-9).Trim() -eq "ON")) {
+            $Profiles += "Domain";
+        }
+    }
+    if ($Private = $NETSH | Select-String "Private Profile" -Context 2 | Out-String) {
+        if (($Private.Substring($Private.Length-9).Trim() -eq "ON")) {
+            $Profiles += "Private";
+        }
+    }
+    if ($Public = $NETSH | Select-String "Public Profile" -Context 2 | Out-String) {
+        if (($Public.Substring($Public.Length-9).Trim() -eq "ON")) {
+            $Profiles += "Public";
+        }
+    }
+
+    # Work out if any of them are enabled and return
+    if ($Profiles) {
+        return $Profiles -Join ",";
+    }
+    else {
+        return "None";
+    }
 }
 
 #---------[ OS ]---------
@@ -263,16 +356,26 @@ catch {
 try {
     Write-ShellMessage -Message "Gathering networking information" -Type INFO;
 
-    # Let's get the Com object established for the firewall rules, outvar to null to avoid ps misinterpretation
-    $Firewall = New-Object -Com "HNetCfg.FwPolicy2" -OutVariable null;
+    # Do an OS check here to see if we're running 2003
+    if ($HostInformation.OS.Caption.Contains("2003")) {
+        # Use netsh to work it out
+        $FirewallRules = Get-NetshFireWallRule;
+        $FirewallZone = Get-NetshFireWallProfile;
+    }
+    else {
+        # Let's get the Com object established for the firewall rules, outvar to null to avoid ps misinterpretation
+        $Firewall = New-Object -Com "HNetCfg.FwPolicy2" -OutVariable null;
+        $FirewallRules = $Firewall.Rules;
+        $FirewallZone = $(switch ($Firewall.CurrentProfileTypes) {1 {"Domain"};2 {"Private"};3 {"Public"};4 {"Domain,Profile,Public"}});
+    }
 
-    # And add to the hostinformation collection
+    # And add to the HostInformation collection
     Add-HostInformation -Name Networking -Value $(New-Object PSCustomObject -Property @{
         AdapterInformation = $(Get-WMIObject -Class "Win32_NetworkAdapterConfiguration" | Select -Property *);
         Hostname           = $env:COMPUTERNAME;
         NTPConfiguration   = $(Invoke-Expression "w32tm /query /configuration");
-        FirewallZone       = $(switch ($Firewall.CurrentProfileTypes) {1 {"Domain"};2 {"Private"};4 {"Public"}});
-        FirewallRules      = $Firewall.Rules;
+        FirewallZone       = $FirewallZone;
+        FirewallRules      = $FirewallRules;
     });
 }
 catch {
@@ -301,11 +404,21 @@ try {
     $x64Reg = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*";
     $SelectCriteria = @("DisplayName","DisplayVersion","Publisher","InstallDate");
 
-    # And add to the collection
-    Add-HostInformation -Name Applications -Value $(New-Object PSCustomObject -Property @{
-        x32 = $(Get-ItemProperty $x32Reg | ?{![String]::IsNullOrEmpty($_.DisplayName)} | Select $SelectCriteria);
-        x64 = $(Get-ItemProperty $x64Reg | ?{![String]::IsNullOrEmpty($_.DisplayName)} | Select $SelectCriteria);
-    });
+    # We might not be x64, so let's test before attempting the result
+    if (Test-Path $x32Reg) {  
+        # Add to the collection normally
+        Add-HostInformation -Name Applications -Value $(New-Object PSCustomObject -Property @{
+            x32 = $(Get-ItemProperty $x32Reg | ?{![String]::IsNullOrEmpty($_.DisplayName)} | Select $SelectCriteria);
+            x64 = $(Get-ItemProperty $x64Reg | ?{![String]::IsNullOrEmpty($_.DisplayName)} | Select $SelectCriteria);
+        });
+    }
+    else {
+        # Swap, as we're x32 only
+        Add-HostInformation -Name Applications -Value $(New-Object PSCustomObject -Property @{
+            x32 = $(Get-ItemProperty $x64Reg | ?{![String]::IsNullOrEmpty($_.DisplayName)} | Select $SelectCriteria);
+            x64 = $Null;
+        });
+    }
 }
 catch {
     Write-ShellMessage -Message "Error gathering applications information" -Type ERROR -ErrorRecord $Error[0];
@@ -317,9 +430,40 @@ try {
     if ($HostInformation.OS.Caption.ToLower().Contains("server")) {
         Write-ShellMessage -Message "Gathering roles and features information" -Type INFO;
 
-        # Import the servermanager module for the Get-WindowsFeature cmdlet
-        Import-Module ServerManager;
-        Add-HostInformation -Name RolesAndFeatures -Value $(Get-WindowsFeature | Select -Property *);
+        # Now, we need to do a check here to see if we're on 2003
+        if ($HostInformation.OS.Caption.Contains("2003")) {
+            # 2003 requires a different capture method; Get the components from the registry
+            $Components = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Setup\Oc Manager\Subcomponents";
+            
+            # Let's check and see if we're x64 and add to the internal collection
+            if (Test-Path "C:\Program Files (x86)") {
+                $Components += Get-ItemProperty "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Setup\Oc Manager\Subcomponents";
+            }
+
+            # Get the roles and features data
+            $RolesAndFeatures = @(
+                $Components | Get-Member -MemberType NoteProperty | %{ 
+                    if ($_.Name -notlike "PS*") {
+                        [PSCustomObject]@{
+                            "DisplayName" = "Server 2003 feature: $($_.Name)";
+                            "Name"         = $_.Name;
+                            "FeatureType" = "2003 Feature";
+                            "Path"         = $Components.PSPath;
+                            "Subfeatures"  = "N/A"
+                            "Installed"    = [Bool]($Components.$($_.Name));
+                        };
+                    };
+                };
+            );
+        }
+        else {
+            # Import the servermanager module for the Get-WindowsFeature cmdlet
+            Import-Module ServerManager;
+            $RolesAndFeatures = $(Get-WindowsFeature | Select -Property *);
+        }
+
+        # Add to our HostInfo collection
+        Add-HostInformation -Name RolesAndFeatures -Value $RolesAndFeatures;
     };
 }
 catch {
@@ -431,24 +575,37 @@ catch {
 try {
     Write-ShellMessage -Message "Gathering Windows Update information" -Type INFO;
         
-    # Ok let's get our Microsoft Update com object established
-    $Session = New-Object -ComObject "Microsoft.Update.Session";
-
-    # Create an update searcher
-    $Searcher = $Session.CreateUpdateSearcher();
-
-    # Query the history count
-    $HistoryCount = $Searcher.GetTotalHistoryCount();
-
-    # RTM level if zero index, act accordingly
-    if ($HistoryCount -gt 0) {
-        $UpdateHistory = $Searcher.QueryHistory(0, $HistoryCount) | ?{![String]::IsNullOrEmpty($_.Title)} | Select Title, Description, Date,@{
-            Name="Operation";Expression={Switch($_.operation){1 {"Installation"}; 2 {"Uninstallation"}; 3 {"Other"}}}
-        };
+    # Ok again another OS check to see if we're running 2003
+    if ($HostInformation.OS.Caption.Contains("2003")) {
+        $UpdateHistory = $(wmic qfe list /format:csv | ConvertFrom-CSV | %{
+            [PSCustomObject]@{
+                Title       = $($_.HotfixID + " " + $_.Description);
+                Description = $_.Caption;
+                Date        = $_.InstalledOn;
+                Operation   = "Install";
+            };
+        });
     }
     else {
-        # RTM; Set to false here so we can parse later
-        $UpdateHistory = $False;
+        # Ok let's get our Microsoft Update com object established
+        $Session = New-Object -ComObject "Microsoft.Update.Session";
+
+        # Create an update searcher
+        $Searcher = $Session.CreateUpdateSearcher();
+
+        # Query the history count
+        $HistoryCount = $Searcher.GetTotalHistoryCount();
+
+        # RTM level if zero index, act accordingly
+        if ($HistoryCount -gt 0) {
+            $UpdateHistory = $Searcher.QueryHistory(0, $HistoryCount) | ?{![String]::IsNullOrEmpty($_.Title)} | Select Title, Description, Date,@{
+                Name="Operation";Expression={Switch($_.operation){1 {"Installation"}; 2 {"Uninstallation"}; 3 {"Other"}}}
+            };
+        }
+        else {
+            # RTM; Set to null
+            $UpdateHistory = $Null;
+        }
     }
 
     # Get the WSUS Server information, trapped as the key may not exist
@@ -491,7 +648,27 @@ catch {
 #---------[ Scheduled Tasks ]---------
 try {
     Write-ShellMessage -Message "Gathering scheduled tasks information" -Type INFO;
-    Add-HostInformation -Name ScheduledTasks -Value $(Get-ScheduledTasksList);
+    
+    # Now we need to check what OS we're on here, 2003 doesn't support our custom method
+    if ($HostInformation.OS.Caption.Contains("2003")) {
+        # Ok we have to parse schtasks.exe
+        $ScheduledTasks = $(schtasks /query /v /fo csv | ConvertFrom-Csv | %{
+            [PSCustomObject]@{
+                Name        = $_.TaskName;
+                Enabled     = $(if ($_."Scheduled Task State" -eq "Enabled"){$True}else{$False});
+                Actions     = $_."Task To Run";
+                LastRunTime = $_."Last Run Time";
+                LastResult  = $_."Last Result";
+            }
+        });
+    }
+    else {
+        # 2008 and above; let's use the custom method
+        $ScheduledTasks = $(Get-ScheduledTasksList);
+    }
+    
+    # And add to our HostInformation collection
+    Add-HostInformation -Name ScheduledTasks -Value $ScheduledTasks;
 }
 catch {
     Write-ShellMessage -Message "Error gathering scheduled tasks information" -Type ERROR -ErrorRecord $Error[0];
