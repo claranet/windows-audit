@@ -138,6 +138,7 @@ Click on the WMI class name for a full list of methods and properties from the M
 _(Note: the `Win32_USBControllerDevice` class is enumerated by the `[Wmi]$_.Dependent` property in order to obtain the connected devices. If you are using certain types of USB hub to chain multiple devices your output may not be captured. In this circumstance you can modify line `#286` in the `.\Scripts\Audit-Scriptblock.ps1` file to further enumerate this.)_
 
 #### Other Available Properties
+_(Note: For IIS versions 5 and 6, use the `$_.IISConfigurationv5and6.*` property set as these are located in a different object.)_
 
 | Property Description  | HostInformation Property  | Contains |
 |---|---|---|
