@@ -470,7 +470,7 @@ catch {
     Write-ShellMessage -Message "Error gathering roles and features information" -Type ERROR -ErrorRecord $Error[0];
 }
 
-#---------[ IIS ]---------
+#---------[ IIS v7+ ]---------
 try {
     if (($HostInformation.RolesAndFeatures | ?{$_.Name -eq "Web-Server"}).Installed) {
         Write-ShellMessage -Message "Gathering IIS information" -Type INFO;
@@ -557,6 +557,61 @@ try {
 }
 catch {
     Write-ShellMessage -Message "Error gathering IIS information" -Type ERROR -ErrorRecord $Error[0];
+}
+
+#---------[ IIS v5/6 ]---------
+try {
+    if ($(try{[Void](Get-WmiObject -Namespace "root/MicrosoftIISv2" -Class IIsWebServer);$True}catch{$False})) {
+        Write-ShellMessage -Message "Gathering IIS v5/6 information" -Type INFO;
+        
+        # Get the WebSites
+        $WebSites = Get-WmiObject -Namespace "root/MicrosoftIISv2" -Class IIsWebServerSetting | %{
+            $ID = $_.Name;
+            New-Object PSCustomObject -Property @{
+                Name         = $_.ServerComment;
+                ID           = $ID;
+                State        = "Enabled";
+                PhysicalPath = $((Get-WmiObject -Namespace "root/MicrosoftIISv2" -Class IIsWebVirtualDirSetting | ?{$_.Name -like "$ID/*"} | select -expandproperty path).Path);
+                Bindings     = $($_.SecureBindings | Select IP,Port)
+            }
+        }
+
+        # Get the Application Pools
+        $ApplicationPools = Get-WmiObject -Namespace "root/MicrosoftIISv2" -Class IIsApplicationPool | %{
+            $Name = $_.Name.Replace("W3SVC/AppPools/","");
+            New-Object PSCustomObject -Property @{
+                Name                  = $Name;
+                State                 = $(switch($_.AppPoolState){1 {"Starting"};2 {"Started"};3 {"Stopping"};4 {"Stopped"}});
+                ManagedPipelineMode   = $Null;
+                ManagedRuntimeVersion = $Null;
+                StartMode             = $Null;
+                AutoStart             = $Null;
+                Applications          = $((Get-WmiObject -Namespace "root/MicrosoftIISv2" -Class IIsWebServerSetting | ?{$_.AppPoolId -eq $Name} | Select -ExpandProperty ServerComment).ServerComment);
+                
+            }
+        }
+
+        # Get the Virtual Directories
+        $VirtualDirectories = Get-WmiObject -Namespace "root/MicrosoftIISv2" -Class IIsWebVirtualDirSetting | %{
+            if ($_.Caption) {
+                New-Object PSObject -Property @{
+                    Name         = $_.Caption;
+                    Path         = $_.Name;
+                    PhysicalPath = $_.Path;
+                }
+            }
+        }
+
+        # Add a collection containing our IIS trees to the hostinfo object
+        Add-HostInformation -Name IISConfigurationv5and6 -Value $(New-Object PSCustomObject -Property @{
+            WebSites            = $WebSites;
+            ApplicationPools    = $ApplicationPools;
+            VirtualDirectories  = $VirtualDirectories;
+        });
+    };
+}
+catch {
+    Write-ShellMessage -Message "Error gathering IIS v5/6 information" -Type ERROR -ErrorRecord $Error[0];
 }
 
 #---------[ TLS Certificates ]---------
@@ -682,7 +737,7 @@ try {
         # Get the ActiveDirectory module imported
         Import-Module ActiveDirectory;
 
-        # Add a collection containing our IIS trees to the hostinfo object
+        # Add a collection containing our domain info to the hostinfo object
         Add-HostInformation -Name ActiveDirectoryDomainController -Value $(New-Object PSCustomObject -Property @{
             DomainController = $(Get-ADDomainController | Select -Property *);
             Domain           = $(Get-ADDomain | Select -Property *);
@@ -734,7 +789,7 @@ try {
             })
         };
 
-        # Add a collection containing our IIS trees to the hostinfo object
+        # Add a collection containing our SQL info to the hostinfo object
         Add-HostInformation -Name SQLServer -Value $(New-Object PSCustomObject -Property @{
             DatabaseList        = $Databases;
             DatabaseInformation = $DatabaseInformation;
