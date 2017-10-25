@@ -9,7 +9,7 @@ The serialised data for servers will remain cached until another gathering opera
 Prerequisites
 ---------
 ##### Calling Client
-Connections over WinRM will require the [Windows Management Framework](https://support.microsoft.com/en-gb/help/968929/windows-management-framework-windows-powershell-2-0--winrm-2-0--and-bi) v2 as a minimum and a Windows credential that is valid on the target machine. For machines which have not got WinRM installed, you can use [PSExec](https://docs.microsoft.com/en-us/sysinternals/downloads/psexec) instead.
+Connections over WinRM will require the [Windows Management Framework](https://support.microsoft.com/en-gb/help/968929/windows-management-framework-windows-powershell-2-0--winrm-2-0--and-bi) v2 as a minimum and a Windows credential that is valid on the target machine. For machines which have not got WinRM installed, you can use [PSExec](https://docs.microsoft.com/en-us/sysinternals/downloads/psexec) instead. If using PSExec you will need TCP port `445` open inbound, as the PowerShell scripts are shared over SMB with the Target Server.
 
 ##### Target Server
 Connections over WinRM will require the [Windows Management Framework](https://support.microsoft.com/en-gb/help/968929/windows-management-framework-windows-powershell-2-0--winrm-2-0--and-bi) v2 as a minimum with TCP port `5985` allowed from the calling client. Alternatively if using PSExec TCP port `445` needs to be opened. Powershell v2 and above has been verified, v1 has not been tested.
