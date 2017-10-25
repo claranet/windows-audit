@@ -120,7 +120,7 @@ if ($InputFile) {
 
     # Ok so let's parse the file
     $I = 0;
-    $InputFile | %{ 
+    $(Get-Content $InputFile) | %{ 
         try {
         # Get the pipe object
         $Line = $_;
@@ -128,21 +128,18 @@ if ($InputFile) {
 
             # Check if the line is pipe separated
             if ($Line.Contains("|")) {
-                $C = [PSCustomObject]@{
-                    Computer = $Line.Split("|")[0];
-                    Protocol = $Line.Split("|")[1];
-                }
+                # Get the props we want
+                $HostName = $Line.Split("|")[0];
+                $Protocol = $Line.Split("|")[1];
             }
             else {
-                $C = [PSCustomObject]@{
-                    Computer = $Line;
-                    Protocol = "WinRM";
-                }
+                $HostName = $Line;
+                $Protocol = $WinRM;
             }
 
             # Write out and add the computer object
-            Write-ShellMessage -Message "Found computer '$($C.Computer)' with protocol '$($C.Protocol)'" -Type DEBUG;
-            $Computers += $C;
+            Write-ShellMessage -Message "Found computer '$HostName' with protocol '$Protocol'" -Type DEBUG;
+            $Computers += "$HostName#$Protocol";
             $I++;
         }
         catch {
@@ -172,10 +169,11 @@ ForEach ($Computer in $Computers) {
 
         # Ok we need to check whether we have an InputFile
         if ($InputFile) {
-            # Get what we need from the PSCustomObject
-            $Hostname = $_.Computer.Split(":")[0];
-            $Port     = $_.Computer.Split(":")[1];
-            $Protocol = $_.Protocol;
+            # Get what we need from the inputfile vars
+            $Split    = $Computer.Split("#");
+            $Hostname = $Split[0].Split(":")[0];
+            $Port     = $Split[0].Split(":")[1];
+            $Protocol = $Split[1];
         }
         else {
             # Get what we need from the param input instead
@@ -226,6 +224,9 @@ ForEach ($Computer in $Computers) {
         $WarningTrigger = $True;
     }
 }
+
+# Kill our progress bar as we're done
+Write-Progress -Completed;
 
 # Check if our RawData folder exists
 Write-ShellMessage -Message "Begining data write to disk" -Type INFO;
