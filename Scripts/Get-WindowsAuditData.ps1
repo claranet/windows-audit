@@ -226,7 +226,7 @@ ForEach ($Computer in $Computers) {
 }
 
 # Kill our progress bar as we're done
-Write-Progress -Completed;
+Write-Progress -Activity "Gathering audit data" -Completed;
 
 # Check if our RawData folder exists
 Write-ShellMessage -Message "Begining data write to disk" -Type INFO;
