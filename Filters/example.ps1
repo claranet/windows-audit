@@ -71,7 +71,7 @@ try {
             "Timezone"                  = $(Get-TimeZoneDisplayName -UTCOffsetMinutes $HostInformation.OS.CurrentTimeZone);
             "System Type"               = $(if($HostInformation.SystemInfo.IsVirtualMachine){"Virtual Machine"}else{"Physical Machine"});
             "Location"                  = $HostInformation.SystemInfo.Location;
-            "WSUS Server"               = $();
+            "WSUS Server"               = $HostInformation.WindowsUpdates.WSUSServer;
             "PowerShell Version"        = $HostInformation.Management.PowerShellVersion;
             ".NET Version"              = $HostInformation.Management.DotNetVersion;
             "CPU"                       = $(($HostInformation.Compute.Name | Select -First 1) + " x$($HostInformation.Compute.Name.Count)");
@@ -229,7 +229,7 @@ $Filter.PSObject.Properties | Sort -Property Name | %{
 
         # Get the hostname for error writing and define the output file
         $HostName = $HostInformation.OS.CSName;
-        $FilePath = ".\Windows-Audit-Data.xlsx";
+        $FilePath = (Resolve-Path $($MyInvocation.PSScriptRoot + "\..\")).Path + "Windows-Audit-Data.xlsx";
 
         # Export to File
         if ($SectionValue) {
