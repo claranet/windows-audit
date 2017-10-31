@@ -233,6 +233,48 @@ Function Get-NetshFireWallProfile {
     }
 }
 
+# Custom SQl query function to avoid management tools dependency
+Function Invoke-SQLQuery {
+    [Cmdletbinding()]
+    Param(
+        [Parameter(Mandatory=$True)]
+        [ValidateNotNullOrEmpty()]
+        [String]$ServerName,
+
+        [Parameter(Mandatory=$True)]
+        [ValidateNotNullOrEmpty()]
+        [String]$Database,
+
+        [Parameter(Mandatory=$True)]
+        [ValidateNotNullOrEmpty()]
+        [String]$Query
+    )
+
+    # Get our return table initialised
+    $Datatable = New-Object System.Data.DataTable;
+    
+    # Get our connection sorted out
+    $Connection = New-Object System.Data.SQLClient.SQLConnection;
+    $Connection.ConnectionString = "server='$ServerName';database='$Database';trusted_connection=true;";
+    $Connection.Open();
+
+    # Get the SQL command ready to execute
+    $Command = New-Object System.Data.SQLClient.SQLCommand;
+    $Command.Connection = $Connection;
+    $Command.CommandText = $Query;
+
+    # Execute the reader command and load the datatable we created earlier
+    $Reader = $Command.ExecuteReader();
+    $Datatable.Load($Reader);
+
+    # Close off the connection
+    $Connection.Close();
+    
+    # And return
+    return $Datatable;
+}
+
+
 #---------[ OS ]---------
 try {
     Write-ShellMessage -Message "Gathering OS information" -Type INFO;
