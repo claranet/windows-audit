@@ -798,44 +798,59 @@ try {
     if (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL") {
         Write-ShellMessage -Message "Gathering SQL Server information" -Type INFO;
 
-        # Get the SQLPS module imported, trap just in case it's not installed properly
-        try {
-            [Void](Import-Module SQLPS -DisableNameChecking -WarningAction SilentlyContinue);
-        }
-        catch {
-            # Let's get the latest version of SQL from whichever directory SQL is installed in
-            if (Test-Path "C:\Program Files\Microsoft SQL Server") {
-                $V = ((gci "C:\Program Files\Microsoft SQL Server" | ?{$_.Name -match "^\d+$"}).Name | Measure -Maximum).Maximum;
+        # Ok let's declare an object to hold our data
+        $SQLServerInformation = @();
+        
+        # Find all the SQL instances by service, this seems to be the most reliable method cross version
+        Get-Service | ?{$_.Name -like "MSSQL*" -and $_.DisplayName -like "SQL Server*"} | %{
+            
+            # Get the instance name
+            $InstanceName = [Regex]::Match($_.DisplayName,"(?<=\()[^}]*(?=\))").Value;
+            
+            # If the instance is the default we need to connect differently
+            if ($InstanceName -eq "MSSQLSERVER") {
+                $InstanceConnectionIdentifier = $env:computername;
             }
             else {
-                $V = ((gci "C:\Program Files (x86)\Microsoft SQL Server" | ?{$_.Name -match "^\d+$"}).Name | Measure -Maximum).Maximum;
+                $InstanceConnectionIdentifier = $env:computername + "\" + $InstanceName;
             }
-
-            # Add snapin method, this will throw into the outer catch if it fails
-            Invoke-Expression "Add-PSSnapin SqlServerProviderSnapin$V";
+            
+            # Get the list of databases for this instance
+            $Databases = Invoke-SQLQuery -Server $InstanceConnectionIdentifier -Database Master -Query "select name from sys.databases";
+        
+            # Enumerate the database list and get the sp_helpdb info
+            $DBInfoCollection = @();
+            $Databases | %{
+            
+                # Get the SP_HELPDB object
+                $DatabaseName = $_.Name;
+                $DB = Invoke-SQLQuery -ServerName $InstanceConnectionIdentifier -Database Master -query "EXEC SP_HELPDB '$DatabaseName'";
+        
+                # Parse and add to the DBInfoCollection
+                $DBInfoCollection += $(New-Object PSCustomObject -Property @{
+                    Name               = $DB.name.Trim();
+                    Size               = $DB.db_size.Trim();
+                    Owner              = $DB.owner.Trim();
+                    DBID               = $DB.dbid;
+                    CreatedDate        = [Datetime]$DB.created;
+                    Status             = $DB.status.Trim();
+                    CompatibilityLevel = $DB.compatibility_level;
+                });
+            
+            }
+            
+            # Add to the SQLServerInformation object
+            $SQLServerInformation += $(New-Object PSCustomObject -Property @{
+                ServerName           = $env:computername;
+                InstanceName         = $InstanceName;
+                ConnectionIdentifier = $InstanceConnectionIdentifier;
+                Databases            = $DBInfoCollection;    
+            });
+        
         }
 
-        # Get a list of databases
-        $DatabaseList = $((Invoke-SQLCMD -Query "SELECT NAME FROM SYS.DATABASES" -Server $env:computername -Database "Master").Name);
-        
-        # Get some help information for the databases
-        $DatabaseInformation = New-Object PSCustomObject;
-        $DatabaseList | %{
-            # Get the database name
-            $DatabaseName = $_;
-
-            # Add the information object to the collection
-            $DatabaseInformation += $(New-Object PSCustomObject -Property @{
-                DatabaseName        = $DatabaseName;
-                DatabaseInformation = $(Invoke-SQLCMD -Query "EXEC SP_HELPDB '$DatabaseName'" -Server $env:computername -Database "Master");
-            })
-        };
-
-        # Add a collection containing our SQL info to the hostinfo object
-        Add-HostInformation -Name SQLServer -Value $(New-Object PSCustomObject -Property @{
-            DatabaseList        = $Databases;
-            DatabaseInformation = $DatabaseInformation;
-        });
+        # Add a collection containing our SQL server information to the hostinfo object
+        Add-HostInformation -Name SQLServer -Value $SQLServerInformation;
     };
 }
 catch {
