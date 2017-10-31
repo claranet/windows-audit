@@ -122,6 +122,7 @@ Click on the WMI class name for a full list of methods and properties from the M
 |---|---|
 | [Win32_OperatingSystem](https://msdn.microsoft.com/en-us/library/aa394239(v=vs.85).aspx) | `$_.OS` |
 | [Win32_ComputerSystem](https://msdn.microsoft.com/en-us/library/aa394102(v=vs.85).aspx) | `$_.SystemInfo.SystemInfo` |
+| [Win32_BIOS](https://msdn.microsoft.com/en-us/library/aa394077(v=vs.85).aspx) | `$_.SystemInfo.BIOS` |
 | [Win32_Processor](https://msdn.microsoft.com/en-us/library/aa394373(v=vs.85).aspx) | `$_.Compute` |
 | [Win32_PhysicalMemory](https://msdn.microsoft.com/en-us/library/aa394347(v=vs.85).aspx) | `$_.Memory.PhysicalMemory` |
 | [Win32_DiskDrive](https://msdn.microsoft.com/en-us/library/aa394132(v=vs.85).aspx) | `$_.Storage.PhysicalDisks` |

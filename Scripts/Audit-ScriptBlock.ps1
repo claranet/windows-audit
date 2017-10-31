@@ -284,6 +284,15 @@ catch {
     Write-ShellMessage -Message "Error gathering OS information" -Type ERROR -ErrorRecord $Error[0];
 }
 
+#---------[ BIOS ]---------
+try {
+    Write-ShellMessage -Message "Gathering BIOS information" -Type INFO;
+    Add-HostInformation -Name BIOS -Value $(Get-WMIObject -Class "Win32_BIOS" | Select -Property *);
+}
+catch {
+    Write-ShellMessage -Message "Error gathering BIOS information" -Type ERROR -ErrorRecord $Error[0];
+}
+
 #---------[ System ]---------
 try {
     Write-ShellMessage -Message "Gathering system information" -Type INFO;
