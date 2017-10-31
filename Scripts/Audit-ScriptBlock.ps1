@@ -801,8 +801,8 @@ try {
         # Ok let's declare an object to hold our data
         $SQLServerInformation = @();
         
-        # Find all the SQL instances by service, this seems to be the most reliable method cross version
-        Get-Service | ?{$_.Name -like "MSSQL*" -and $_.DisplayName -like "SQL Server*"} | %{
+        # Find all the SQL instances by (running) service, this seems to be the most reliable method cross version
+        Get-Service | ?{$_.Name -like "MSSQL*" -and $_.DisplayName -like "SQL Server*" -and $_.Status -eq "Running"} | %{
             
             # Get the instance name
             $InstanceName = [Regex]::Match($_.DisplayName,"(?<=\()[^}]*(?=\))").Value;
