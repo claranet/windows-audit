@@ -391,11 +391,39 @@ catch {
 #---------[ Storage ]---------
 try {
     Write-ShellMessage -Message "Gathering storage information" -Type INFO;
+
+    # Get the original Win32_Share collection and create an output object to hold our version
+    $WMIShares = $(Get-WMIObject -Class "Win32_Share" | Select -Property *);
+    $CustomShares = @();
+
+    # Enumerate the shares from WMI
+    $Shares | Select Name | %{
+        
+        # Get the sharename
+        $ShareName = $_.Name;
+        
+        # Get some share permission information
+        $ShareInfo = Invoke-Expression "net share $ShareName";
+
+        # Clean it up
+        $Permissions = (($ShareInfo | ?{$_ -like "Permission*" -or $_ -like " *"}) -join "");
+        $Permissions = $Permissions.Replace("Permission","").Trim().Replace("   "," ");
+        
+        # Create a new object
+        $Share = $Shares | ?{$_.Name -eq $ShareName};
+        
+        # Add the permission property 
+        $Share | Add-Member -MemberType NoteProperty -Name SharePermissions -Value $Permissions;
+        
+        # And add to our collection
+        $CustomShares += $Share;
+    }
+
     Add-HostInformation -Name Storage -Value $(New-Object PSCustomObject -Property @{
         PhysicalDisks = $(Get-WMIObject -Class "Win32_DiskDrive" | Select -Property *);
         LogicalDisks  = $(Get-WMIObject -Class "Win32_LogicalDisk" | Select -Property *);
         Volumes       = $(Get-WMIObject -Class "Win32_Volume" | Select -Property *);
-        SharedFolders = $(Get-WMIObject -Class "Win32_Share" | Select -Property *);
+        SharedFolders = $CustomShares;
         MountedDrives = $(Get-WMIObject -Class "Win32_MappedLogicalDisk" | Select -Property *);
     });
 }
