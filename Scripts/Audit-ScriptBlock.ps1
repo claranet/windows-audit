@@ -554,84 +554,121 @@ try {
     if (($HostInformation.RolesAndFeatures | ?{$_.Name -eq "Web-Server"}).Installed) {
         Write-ShellMessage -Message "Gathering IIS information" -Type INFO;
 
-        # Get the WebAdministration module imported
-        Import-Module WebAdministration;
+        # This is wrapped in a powershell job; sometimes due to bad server configuration
+        # powershell modules just hang when trying to load. Processing this way allows 
+        # the use of a timeout to prevent the whole process getting hung up.
 
-        # Now, we need to explicitly cast the outputs of the following
-        # to PSCustomObjects as the IISConfigurationElement and other
-        # types don't serialise properly.
+        # Get the job defined in a scriptblock
+        $GetIISConfigurationJobScriptBlock = {
+            # Get the WebAdministration module imported
+            Import-Module WebAdministration;
 
-        # Get the WebSites
-        $WebSites = Get-WebSite | %{
-            New-Object PSCustomObject -Property @{
-                Name         = $_.Name;
-                ID           = $_.ID;
-                State        = $_.State;
-                PhysicalPath = $_.PhysicalPath;
-                Bindings     = @(,$(($_.Bindings | %{$_.Collection}) -join " "));
-            }
-        }
+            # Now, we need to explicitly cast the outputs of the following
+            # to PSCustomObjects as the IISConfigurationElement and other
+            # types don't serialise properly.
 
-        # Get the Application Pools
-        $ApplicationPools = gci "IIS:\AppPools" | Select -Property * | %{
-            $Name = $_.Name;
-            New-Object PSCustomObject -Property @{
-                Name                  = $Name;
-                State                 = $_.State;
-                ManagedPipelineMode   = $_.ManagedPipelineMode;
-                ManagedRuntimeVersion = $_.ManagedRuntimeVersion;
-                StartMode             = $_.StartMode;
-                AutoStart             = $_.AutoStart;
-                Applications          = @(,$((Get-WebSite | ?{$_.applicationPool -eq $Name} | Select Name).Name));
-            }
-        }
+            # Get the WebSites
+            $WebSites = Get-WebSite | %{
+                    New-Object PSCustomObject -Property @{
+                        Name         = $_.Name;
+                        ID           = $_.ID;
+                        State        = $_.State;
+                        PhysicalPath = $_.PhysicalPath;
+                        Bindings     = @(,$(($_.Bindings | %{$_.Collection}) -join " "));
+                    }
+                }
 
-        # Get the Bindings
-        $WebBindings = Get-WebBinding | %{
-            New-Object PSCustomObject -Property @{
-                Protocol           = $_.protocol;
-                BindingInformation = $_.bindingInformation;
-            }
-        }
+            # Get the Application Pools
+            $ApplicationPools = gci "IIS:\AppPools" | Select -Property * | %{
+                    $Name = $_.Name;
+                    New-Object PSCustomObject -Property @{
+                        Name                  = $Name;
+                        State                 = $_.State;
+                        ManagedPipelineMode   = $_.ManagedPipelineMode;
+                        ManagedRuntimeVersion = $_.ManagedRuntimeVersion;
+                        StartMode             = $_.StartMode;
+                        AutoStart             = $_.AutoStart;
+                        Applications          = @(,$((Get-WebSite | ?{$_.applicationPool -eq $Name} | Select Name).Name));
+                    }
+                }
 
-        # Get the Virtual Directories
-        $VirtualDirectories = Get-WebVirtualDirectory | %{
-            New-Object PSObject -Property @{
-                Name         = $_.Path.Split("/")[($_.Path.Split("/").Length)-1];
-                Path         = $_.Path;
-                PhysicalPath = $_.PhysicalPath;
-            }
-        }
+            # Get the Bindings
+            $WebBindings = Get-WebBinding | %{
+                    New-Object PSCustomObject -Property @{
+                        Protocol           = $_.protocol;
+                        BindingInformation = $_.bindingInformation;
+                    }
+                }
 
-        # Get a list .config files for each application so we can work out dependency chains
-        $ConfigFiles = Get-ChildItem "IIS:\" -Recurse | ?{$_.Name -like "*.config"} | Select FullName;
-        $ConfigFileContent = @();
-        
-        # If any are found, enumerate the collection and get the content
-        $ConfigFiles | %{
-            
-            # Get the pipeline object
-            $ConfigFile = $_;
+            # Get the Virtual Directories
+            $VirtualDirectories = Get-WebVirtualDirectory | %{
+                    New-Object PSObject -Property @{
+                        Name         = $_.Path.Split("/")[($_.Path.Split("/").Length)-1];
+                        Path         = $_.Path;
+                        PhysicalPath = $_.PhysicalPath;
+                    }
+                }
 
-            # Work out what website it belongs to
-            $WebSite = (Get-WebSite | ?{$_.PhysicalPath -like "*$($ConfigFile.Directory.FullName)*"}).Name;
+            # Get a list .config files for each application so we can work out dependency chains
+            $ConfigFiles = Get-ChildItem "IIS:\" -Recurse | ?{$_.Name -like "*.config"} | Select FullName;
+            $ConfigFileContent = @();
+                
+            # If any are found, enumerate the collection and get the content
+            $ConfigFiles | %{
+                    
+                    # Get the pipeline object
+                    $ConfigFile = $_;
 
-            # Add to the collection
-            $ConfigFileContent += $(New-Object PSCustomObject -Property @{
-                Site    = $WebSite;
-                Path    = $ConfigFile.FullName;
-                Content = $(Get-Content $ConfigFile.FullName | Out-String);
+                    # Work out what website it belongs to
+                    $WebSite = (Get-WebSite | ?{$_.PhysicalPath -like "*$($ConfigFile.Directory.FullName)*"}).Name;
+
+                    # Add to the collection
+                    $ConfigFileContent += $(New-Object PSCustomObject -Property @{
+                        Site    = $WebSite;
+                        Path    = $ConfigFile.FullName;
+                        Content = $(Get-Content $ConfigFile.FullName | Out-String);
+                    });
+                }
+
+            # Return the data we want
+            return $(New-Object PSCustomObject -Property @{
+                WebSites            = $WebSites;
+                ApplicationPools    = $ApplicationPools;
+                WebBindings         = $WebBindings;
+                VirtualDirectories  = $VirtualDirectories;
+                ConfigurationFiles  = $ConfigFileContent;
             });
         }
 
-        # Add a collection containing our IIS trees to the hostinfo object
-        Add-HostInformation -Name IISConfiguration -Value $(New-Object PSCustomObject -Property @{
-            WebSites            = $WebSites;
-            ApplicationPools    = $ApplicationPools;
-            WebBindings         = $WebBindings;
-            VirtualDirectories  = $VirtualDirectories;
-            ConfigurationFiles  = $ConfigFileContent;
-        });
+        # Ok get our desired timeout
+        $Timeout = (Get-Date).AddMinutes(2);
+
+        # Start the job
+        $GetIISConfigurationJob = Start-Job -ScriptBlock $GetIISConfigurationJobScriptBlock;
+
+        # Now we need to wait for the job to finish
+        While ("NotStarted","Starting","Running" -contains $GetIISConfigurationJob.State) {
+
+            # Ok first we need to check the timeout
+            if ($(Get-Date) -ge $Timeout) {
+                
+                # Ok kill the job
+                Remove-Job -Job $GetIISConfigurationJob -Force;
+
+                # And throw
+                throw [System.TimeoutException] "the IIS WebAdministration module import timed out";
+            }
+            else {
+                # Wait a bit longer instead
+                Start-Sleep -Seconds 5;
+            }
+        }
+
+        # Ok get the data
+        $IISConfiguration = Receive-Job -Job $GetIISConfigurationJob;
+
+        # And add the IIS data to our HostInformation collection
+        Add-HostInformation -Name IISConfiguration -Value $IISConfiguration;
     };
 }
 catch {
