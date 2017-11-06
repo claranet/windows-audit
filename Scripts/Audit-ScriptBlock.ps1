@@ -293,6 +293,15 @@ catch {
     Write-ShellMessage -Message "Error gathering BIOS information" -Type ERROR -ErrorRecord $Error[0];
 }
 
+#---------[ Chassis/Hardware ]---------
+try {
+    Write-ShellMessage -Message "Gathering hardware information" -Type INFO;
+    Add-HostInformation -Name Hardware -Value $(Get-WMIObject -Class "Cim_Chassis" | Select -Property *);
+}
+catch {
+    Write-ShellMessage -Message "Error gathering hardware information" -Type ERROR -ErrorRecord $Error[0];
+}
+
 #---------[ System ]---------
 try {
     Write-ShellMessage -Message "Gathering system information" -Type INFO;
