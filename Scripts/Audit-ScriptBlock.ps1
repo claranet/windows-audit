@@ -911,12 +911,12 @@ try {
         
                 # Parse and add to the DBInfoCollection
                 $DBInfoCollection += $(New-Object PSCustomObject -Property @{
-                    Name               = $DB.name.Trim();
-                    Size               = $DB.db_size.Trim();
-                    Owner              = $DB.owner.Trim();
+                    Name               = $DB.name.ToString().Trim();
+                    Size               = $DB.db_size.ToString().Trim();
+                    Owner              = $DB.owner.ToString().Trim();
                     DBID               = $DB.dbid;
                     CreatedDate        = [Datetime]$DB.created;
-                    Status             = $DB.status.Trim();
+                    Status             = $DB.status.ToString().Trim();
                     CompatibilityLevel = $DB.compatibility_level;
                 });
             
