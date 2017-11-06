@@ -222,7 +222,7 @@ Function Invoke-PSExecCommand {
         ) -Join "";
 
         # And get the expression ready
-        $Expression = "psexec \\$ComputerName  cmd /c powershell -Command $Command";
+        $Expression = "psexec -i \\$ComputerName  cmd /c powershell -Command $Command";
         
         # Invoke the PSExec command
         $RawOutput = Invoke-Expression $Expression;
