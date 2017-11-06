@@ -200,43 +200,49 @@ Function Invoke-PSExecCommand {
         [Int]$SerialisationDepth = 5
     )
 
-    # Ok we need to get an object containing the properties we want
-    $ScriptFileObject = Get-Item $Script;
-    
-    # Then tune a few properties we need
-    $ScriptPath = $ScriptFileObject.Directory.FullName;
-    $ShareName  = ($ScriptFileObject.BaseName -replace '[^a-zA-Z]','') + '$';
-    $ScriptFile = $ScriptFileObject.Name;
+    # Trapped to take advantage of finally block
+    try {
+        # Ok we need to get an object containing the properties we want
+        $ScriptFileObject = Get-Item $Script;
+        
+        # Then tune a few properties we need
+        $ScriptPath = $ScriptFileObject.Directory.FullName;
+        $ShareName  = ($ScriptFileObject.BaseName -replace '[^a-zA-Z]','') + '$';
+        $ScriptFile = $ScriptFileObject.Name;
 
-    # Then we need to share the script path with the script name we parsed
-    [Void](New-SMBShare -Name $ShareName -Path $ScriptPath -FullAccess "Everyone");
+        # Then we need to share the script path with the script name we parsed
+        [Void](New-SMBShare -Name $ShareName -Path $ScriptPath -FullAccess "Everyone");
 
-    # Get the command built; Unrestricted policy is for PSv2 compatibility, the scope is this execution only
-    $Command = @(
-        'Set-ExecutionPolicy Unrestricted -ErrorAction SilentlyContinue;',
-        $('$ScriptBlock = [ScriptBlock]::Create($(Get-Content "\\{0}\{1}\{2}" | Out-String));' -f $env:COMPUTERNAME,$ShareName,$ScriptFile),
-        '$AuditResult = $ScriptBlock.Invoke();',
-        'return [System.Management.Automation.PSSerializer]::Serialize($AuditResult,5);'
-    ) -Join "";
+        # Get the command built; Unrestricted policy is for PSv2 compatibility, the scope is this execution only
+        $Command = @(
+            'Set-ExecutionPolicy Unrestricted -ErrorAction SilentlyContinue;',
+            $('$ScriptBlock = [ScriptBlock]::Create($(Get-Content "\\{0}\{1}\{2}" | Out-String));' -f $env:COMPUTERNAME,$ShareName,$ScriptFile),
+            '$AuditResult = $ScriptBlock.Invoke();',
+            'return [System.Management.Automation.PSSerializer]::Serialize($AuditResult,5);'
+        ) -Join "";
 
-    # And get the expression ready
-    $Expression = "psexec \\$ComputerName  cmd /c powershell -Command $Command";
-    
-    # Invoke the PSExec command
-    $RawOutput = Invoke-Expression $Expression;
+        # And get the expression ready
+        $Expression = "psexec \\$ComputerName  cmd /c powershell -Command $Command";
+        
+        # Invoke the PSExec command
+        $RawOutput = Invoke-Expression $Expression;
 
-    # Clean up the output
-    $RawOutput = $RawOutput -replace "PsExec v(.*) - Execute processes remotely","";
-    $RawOutput = $RawOutput -replace "Copyright \(C\) (.*) Mark Russinovich","";
-    $RawOutput = $RawOutput -replace "Sysinternals - www.sysinternals.com","";
-    $RawOutput = $RawOutput | ?{![String]::IsNullOrEmpty($_)};
-    [PSCustomObject]$Output = [System.Management.Automation.PSSerializer]::Deserialize($RawOutput);
+        # Clean up the output
+        $RawOutput = $RawOutput -replace "PsExec v(.*) - Execute processes remotely","";
+        $RawOutput = $RawOutput -replace "Copyright \(C\) (.*) Mark Russinovich","";
+        $RawOutput = $RawOutput -replace "Sysinternals - www.sysinternals.com","";
+        $RawOutput = $RawOutput | ?{![String]::IsNullOrEmpty($_)};
+        [PSCustomObject]$Output = [System.Management.Automation.PSSerializer]::Deserialize($RawOutput);
 
-    # Remove the share we created before exec()
-    [Void](Remove-SMBShare -Name $ShareName -Force);
-
-    # And return the goods
-    return $Output;
+        # And return the goods
+        return $Output;
+    }
+    catch {
+        throw $Error[0];
+    }
+    finally {
+        [Void](Get-SMBShare -Name $ShareName -ErrorAction SilentlyContinue | Remove-SMBShare -Force);
+    }
 }
 
 # Writes pretty log messages
