@@ -122,6 +122,7 @@ Click on the WMI class name for a full list of methods and properties from the M
 |---|---|
 | [Win32_OperatingSystem](https://msdn.microsoft.com/en-us/library/aa394239(v=vs.85).aspx) | `$_.OS` |
 | [Win32_ComputerSystem](https://msdn.microsoft.com/en-us/library/aa394102(v=vs.85).aspx) | `$_.SystemInfo.SystemInfo` |
+| [Win32_BIOS](https://msdn.microsoft.com/en-us/library/aa394077(v=vs.85).aspx) | `$_.SystemInfo.BIOS` |
 | [Win32_Processor](https://msdn.microsoft.com/en-us/library/aa394373(v=vs.85).aspx) | `$_.Compute` |
 | [Win32_PhysicalMemory](https://msdn.microsoft.com/en-us/library/aa394347(v=vs.85).aspx) | `$_.Memory.PhysicalMemory` |
 | [Win32_DiskDrive](https://msdn.microsoft.com/en-us/library/aa394132(v=vs.85).aspx) | `$_.Storage.PhysicalDisks` |
@@ -136,6 +137,8 @@ Click on the WMI class name for a full list of methods and properties from the M
 | [Win32_Service](https://msdn.microsoft.com/en-us/library/aa394418(v=vs.85).aspx) | `$_.WindowsServices` |
 
 _(Note: the `Win32_USBControllerDevice` class is enumerated by the `[Wmi]$_.Dependent` property in order to obtain the connected devices. If you are using certain types of USB hub to chain multiple devices your output may not be captured. In this circumstance you can modify line `#286` in the `.\Scripts\Audit-Scriptblock.ps1` file to further enumerate this.)_
+
+_(Note 2: the `Win32_Share` class also has an additional `$_.SharePermissions` property added, which you can use to view the share permissions.)_
 
 #### Other Available Properties
 _(Note: For IIS versions 5 and 6, use the `$_.IISConfigurationv5and6.*` property set as these are located in a different object.)_
@@ -175,7 +178,6 @@ _(Note: For IIS versions 5 and 6, use the `$_.IISConfigurationv5and6.*` property
 | Forest Info | `$_.ActiveDirectoryDomainController.Forest` | ApplicationPartitions<br /> CrossForestReferences<br /> DomainNamingMaster<br /> Domains<br /> ForestMode<br /> GlobalCatalogs<br /> Name<br /> PartitionsContainer<br /> RootDomain<br /> SchemaMaster<br /> Sites<br /> SPNSuffixes<br /> UPNSuffixes<br /> PropertyNames<br /> PropertyCount<br /> |
 | Directory Service Specific Entries |  `$_.ActiveDirectoryDomainController.DSE` | configurationNamingContext<br /> currentTime<br /> defaultNamingContext<br /> dnsHostName<br /> domainControllerFunctionality<br /> domainFunctionality<br /> dsServiceName<br /> forestFunctionality<br /> highestCommittedUSN<br /> isGlobalCatalogReady<br /> isSynchronized<br /> ldapServiceName<br /> namingContexts<br /> rootDomainNamingContext<br /> schemaNamingContext<br /> serverName<br /> subschemaSubentry<br /> supportedCapabilities<br /> supportedControl<br /> supportedLDAPPolicies<br /> supportedLDAPVersion<br /> supportedSASLMechanisms<br /> Synchronized<br /> GlobalCatalogReady<br /> PropertyNames<br /> PropertyCount<br /> |
 | DC Diag |  `$_.ActiveDirectoryDomainController.DCDiag` | Output from `dcdiag` |
-| SQL Database List | `$_.SQLServer.DatabaseList` | String[] of database names |
-| SQL Database Information | `$_.SQLServer.DatabaseInformation` | Output from `SP_HELPDB` for all databases |
+| SQL Instance Information | `$_.SQLServer` | ServerName<br /> InstanceName<br /> ConnectionIdentifier<br /> Databases<br /><br />_Databases objects enumerate to:_<br /> Name<br /> Owner<br /> CreatedDate<br /> CompatibilityLevel<br /> DBID<br /> Status<br /> Size<br /> |
 | Apache Virtual Hosts | `$_.ApacheVirtualHosts` | String[] of Virtual Hosts |
 | Tomcat Applications | `$_.TomcatApplications` | String[] of applications |

@@ -233,6 +233,48 @@ Function Get-NetshFireWallProfile {
     }
 }
 
+# Custom SQl query function to avoid management tools dependency
+Function Invoke-SQLQuery {
+    [Cmdletbinding()]
+    Param(
+        [Parameter(Mandatory=$True)]
+        [ValidateNotNullOrEmpty()]
+        [String]$ServerName,
+
+        [Parameter(Mandatory=$True)]
+        [ValidateNotNullOrEmpty()]
+        [String]$Database,
+
+        [Parameter(Mandatory=$True)]
+        [ValidateNotNullOrEmpty()]
+        [String]$Query
+    )
+
+    # Get our return table initialised
+    $Datatable = New-Object System.Data.DataTable;
+    
+    # Get our connection sorted out
+    $Connection = New-Object System.Data.SQLClient.SQLConnection;
+    $Connection.ConnectionString = "server='$ServerName';database='$Database';trusted_connection=true;";
+    $Connection.Open();
+
+    # Get the SQL command ready to execute
+    $Command = New-Object System.Data.SQLClient.SQLCommand;
+    $Command.Connection = $Connection;
+    $Command.CommandText = $Query;
+
+    # Execute the reader command and load the datatable we created earlier
+    $Reader = $Command.ExecuteReader();
+    $Datatable.Load($Reader);
+
+    # Close off the connection
+    $Connection.Close();
+    
+    # And return
+    return $Datatable;
+}
+
+
 #---------[ OS ]---------
 try {
     Write-ShellMessage -Message "Gathering OS information" -Type INFO;
@@ -240,6 +282,15 @@ try {
 }
 catch {
     Write-ShellMessage -Message "Error gathering OS information" -Type ERROR -ErrorRecord $Error[0];
+}
+
+#---------[ BIOS ]---------
+try {
+    Write-ShellMessage -Message "Gathering BIOS information" -Type INFO;
+    Add-HostInformation -Name BIOS -Value $(Get-WMIObject -Class "Win32_BIOS" | Select -Property *);
+}
+catch {
+    Write-ShellMessage -Message "Error gathering BIOS information" -Type ERROR -ErrorRecord $Error[0];
 }
 
 #---------[ System ]---------
@@ -340,11 +391,39 @@ catch {
 #---------[ Storage ]---------
 try {
     Write-ShellMessage -Message "Gathering storage information" -Type INFO;
+
+    # Get the original Win32_Share collection and create an output object to hold our version
+    $WMIShares = $(Get-WMIObject -Class "Win32_Share" | Select -Property *);
+    $CustomShares = @();
+
+    # Enumerate the shares from WMI
+    $Shares | Select Name | %{
+        
+        # Get the sharename
+        $ShareName = $_.Name;
+        
+        # Get some share permission information
+        $ShareInfo = Invoke-Expression "net share $ShareName";
+
+        # Clean it up
+        $Permissions = (($ShareInfo | ?{$_ -like "Permission*" -or $_ -like " *"}) -join "");
+        $Permissions = $Permissions.Replace("Permission","").Trim().Replace("   "," ");
+        
+        # Create a new object
+        $Share = $Shares | ?{$_.Name -eq $ShareName};
+        
+        # Add the permission property 
+        $Share | Add-Member -MemberType NoteProperty -Name SharePermissions -Value $Permissions;
+        
+        # And add to our collection
+        $CustomShares += $Share;
+    }
+
     Add-HostInformation -Name Storage -Value $(New-Object PSCustomObject -Property @{
         PhysicalDisks = $(Get-WMIObject -Class "Win32_DiskDrive" | Select -Property *);
         LogicalDisks  = $(Get-WMIObject -Class "Win32_LogicalDisk" | Select -Property *);
         Volumes       = $(Get-WMIObject -Class "Win32_Volume" | Select -Property *);
-        SharedFolders = $(Get-WMIObject -Class "Win32_Share" | Select -Property *);
+        SharedFolders = $CustomShares;
         MountedDrives = $(Get-WMIObject -Class "Win32_MappedLogicalDisk" | Select -Property *);
     });
 }
@@ -756,44 +835,59 @@ try {
     if (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL") {
         Write-ShellMessage -Message "Gathering SQL Server information" -Type INFO;
 
-        # Get the SQLPS module imported, trap just in case it's not installed properly
-        try {
-            [Void](Import-Module SQLPS -DisableNameChecking -WarningAction SilentlyContinue);
-        }
-        catch {
-            # Let's get the latest version of SQL from whichever directory SQL is installed in
-            if (Test-Path "C:\Program Files\Microsoft SQL Server") {
-                $V = ((gci "C:\Program Files\Microsoft SQL Server" | ?{$_.Name -match "^\d+$"}).Name | Measure -Maximum).Maximum;
+        # Ok let's declare an object to hold our data
+        $SQLServerInformation = @();
+        
+        # Find all the SQL instances by (running) service, this seems to be the most reliable method cross version
+        Get-Service | ?{$_.Name -like "MSSQL*" -and $_.DisplayName -like "SQL Server*" -and $_.Status -eq "Running"} | %{
+            
+            # Get the instance name
+            $InstanceName = [Regex]::Match($_.DisplayName,"(?<=\()[^}]*(?=\))").Value;
+            
+            # If the instance is the default we need to connect differently
+            if ($InstanceName -eq "MSSQLSERVER") {
+                $InstanceConnectionIdentifier = $env:computername;
             }
             else {
-                $V = ((gci "C:\Program Files (x86)\Microsoft SQL Server" | ?{$_.Name -match "^\d+$"}).Name | Measure -Maximum).Maximum;
+                $InstanceConnectionIdentifier = $env:computername + "\" + $InstanceName;
             }
-
-            # Add snapin method, this will throw into the outer catch if it fails
-            Invoke-Expression "Add-PSSnapin SqlServerProviderSnapin$V";
+            
+            # Get the list of databases for this instance
+            $Databases = Invoke-SQLQuery -Server $InstanceConnectionIdentifier -Database Master -Query "select name from sys.databases";
+        
+            # Enumerate the database list and get the sp_helpdb info
+            $DBInfoCollection = @();
+            $Databases | %{
+            
+                # Get the SP_HELPDB object
+                $DatabaseName = $_.Name;
+                $DB = Invoke-SQLQuery -ServerName $InstanceConnectionIdentifier -Database Master -query "EXEC SP_HELPDB '$DatabaseName'";
+        
+                # Parse and add to the DBInfoCollection
+                $DBInfoCollection += $(New-Object PSCustomObject -Property @{
+                    Name               = $DB.name.Trim();
+                    Size               = $DB.db_size.Trim();
+                    Owner              = $DB.owner.Trim();
+                    DBID               = $DB.dbid;
+                    CreatedDate        = [Datetime]$DB.created;
+                    Status             = $DB.status.Trim();
+                    CompatibilityLevel = $DB.compatibility_level;
+                });
+            
+            }
+            
+            # Add to the SQLServerInformation object
+            $SQLServerInformation += $(New-Object PSCustomObject -Property @{
+                ServerName           = $env:computername;
+                InstanceName         = $InstanceName;
+                ConnectionIdentifier = $InstanceConnectionIdentifier;
+                Databases            = $DBInfoCollection;    
+            });
+        
         }
 
-        # Get a list of databases
-        $DatabaseList = $((Invoke-SQLCMD -Query "SELECT NAME FROM SYS.DATABASES" -Server $env:computername -Database "Master").Name);
-        
-        # Get some help information for the databases
-        $DatabaseInformation = New-Object PSCustomObject;
-        $DatabaseList | %{
-            # Get the database name
-            $DatabaseName = $_;
-
-            # Add the information object to the collection
-            $DatabaseInformation += $(New-Object PSCustomObject -Property @{
-                DatabaseName        = $DatabaseName;
-                DatabaseInformation = $(Invoke-SQLCMD -Query "EXEC SP_HELPDB '$DatabaseName'" -Server $env:computername -Database "Master");
-            })
-        };
-
-        # Add a collection containing our SQL info to the hostinfo object
-        Add-HostInformation -Name SQLServer -Value $(New-Object PSCustomObject -Property @{
-            DatabaseList        = $Databases;
-            DatabaseInformation = $DatabaseInformation;
-        });
+        # Add a collection containing our SQL server information to the hostinfo object
+        Add-HostInformation -Name SQLServer -Value $SQLServerInformation;
     };
 }
 catch {

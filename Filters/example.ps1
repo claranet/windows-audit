@@ -151,6 +151,7 @@ try {
                     "Shared Folder Path"        = $_.Path;
                     "Shared Folder Name"        = $_.Name;
                     "Shared Folder Description" = $_.Description;
+                    "Shared Folder Permissions" = $_.SharePermissions;
                     "Mounted Drive Path"        = "N/A";
                     "Mounted Drive Letter"      = "N/A";
                 }
@@ -162,6 +163,7 @@ try {
                     "Shared Folder Path"        = "N/A";
                     "Shared Folder Name"        = "N/A";
                     "Shared Folder Description" = "N/A";
+                    "Shared Folder Permissions" = "N/A";
                     "Mounted Drive Path"        = $_.ProviderName;
                     "Mounted Drive Letter"      = $_.Name;
                 }
