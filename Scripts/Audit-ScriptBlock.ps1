@@ -942,20 +942,14 @@ catch {
 
 #---------[ Apache Virtual Hosts ]---------
 try {
-    if (Get-Service | ?{$_.Name -like "*Apache*" -and $_.Name -notlike "*Tomcat*"}) {
+    if (Get-Process "httpd") {
         Write-ShellMessage -Message "Gathering Apache Virtual Host information" -Type INFO;
 
-        # Get the Apache install and httpd.exe paths
-        $ApachePath = $((Get-ChildItem "C:\Program Files (x86)\*Apache*").FullName);
-        $Httpd      = $((Get-ChildItem $ApachePath "httpd.exe" | Select -First 1).FullName);
+        # Get the Apache httpd.exe path
+        $Httpd = (Get-Process "httpd").Path;
 
-        if ($Httpd) {
-            # Add a collection containing our Apache tree to the hostinfo object
-            Add-HostInformation -Name ApacheVirtualHosts -Value $((Invoke-Expression "$httpd -S").Split("`r`n"));
-        }
-        else {
-            throw "Couldn't locate Apache httpd.exe";
-        }
+        # Add a collection containing our Apache tree to the hostinfo object
+        Add-HostInformation -Name ApacheVirtualHosts -Value $((Invoke-Expression "$httpd -S").Split("`r`n"));
     }
 }
 catch {
@@ -968,7 +962,7 @@ try {
         Write-ShellMessage -Message "Gathering Tomcat application information" -Type INFO;
 
         # Add a collection containing our Tomcat tree to the hostinfo object
-        $TomcatApplications = $((New-Object System.Net.WebClient).DownloadString("http://localhost:8080/manager/text/list").Split("`r`n"));
+        $TomcatApplications = $((New-Object System.Net.WebClient).DownloadString("http://localhost:8080/manager/list").Split("`r`n"));
         Add-HostInformation -Name TomcatApplications -Value $TomcatApplications;
     }
 }
