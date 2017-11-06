@@ -283,3 +283,34 @@ Function Write-ShellMessage {
     # And write out
     Write-Host $Output -ForegroundColor $C;
 }
+
+# Writes error log messages to file
+Function Write-ErrorLog {
+    [Cmdletbinding()]
+    Param(
+        [Parameter(Mandatory=$True)]
+        [ValidateNotNullOrEmpty()]
+        [String]$Hostname,
+        [Parameter(Mandatory=$True)]
+        [ValidateNotNullOrEmpty()]
+        [String]$EventName,
+        [Parameter(Mandatory=$True)]
+        [ValidateNotNullOrEmpty()]
+        [String]$Exception
+    )
+
+    # Get a datestamp sorted
+    $DateStamp = Get-Date -Format "dd/MM/yy HH:mm:ss";
+
+    # Build our message output
+    $Output = [String]::Format("[{0}] [{1}] [{2}]: {3}",$DateStamp,$HostName,$Type,$Exception);
+    
+    # Check if our errors file exists and create if needed
+    $ErrorsFile = ".\errors.log";
+    if (!(Test-Path $ErrorsFile)) {
+        [Void](New-Item $ErrorsFile -ItemType File);
+    }
+
+    # Add the content to the file
+    Add-Content -Path $ErrorsFile -Value $Output;
+}

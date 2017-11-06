@@ -222,6 +222,9 @@ ForEach ($Computer in $Computers) {
         # Write out and set our warning trigger
         Write-ShellMessage -Message "There was a problem gathering information from computer '$HostName'" -Type WARNING -ErrorRecord $_;
         $WarningTrigger = $True;
+
+        # Write to error log file
+        Write-ErrorLog -HostName $HostName -EventName "Gather" -Exception $($_.Exception.Message);
     }
 }
 
@@ -262,6 +265,9 @@ $Output | %{
         # Write out and set our warning trigger
         Write-ShellMessage -Message "There was an error attempting to serialise data for '$Hostname' and write it to disk" -Type ERROR -ErrorRecord $_;
         $WarningTrigger = $True;
+
+        # Write to error log file
+        Write-ErrorLog -HostName $HostName -EventName "WriteToDisk" -Exception $($_.Exception.Message);
     }
 }
 
