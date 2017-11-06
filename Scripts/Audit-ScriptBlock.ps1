@@ -942,7 +942,7 @@ catch {
 
 #---------[ Apache Virtual Hosts ]---------
 try {
-    if (Get-Process "httpd") {
+    if ($(try{[Void](Get-Process "httpd")}catch{$false})) {
         Write-ShellMessage -Message "Gathering Apache Virtual Host information" -Type INFO;
 
         # Get the Apache httpd.exe path
