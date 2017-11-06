@@ -293,6 +293,15 @@ catch {
     Write-ShellMessage -Message "Error gathering BIOS information" -Type ERROR -ErrorRecord $Error[0];
 }
 
+#---------[ Chassis/Hardware ]---------
+try {
+    Write-ShellMessage -Message "Gathering hardware information" -Type INFO;
+    Add-HostInformation -Name Hardware -Value $(Get-WMIObject -Class "Cim_Chassis" | Select -Property *);
+}
+catch {
+    Write-ShellMessage -Message "Error gathering hardware information" -Type ERROR -ErrorRecord $Error[0];
+}
+
 #---------[ System ]---------
 try {
     Write-ShellMessage -Message "Gathering system information" -Type INFO;
@@ -554,84 +563,121 @@ try {
     if (($HostInformation.RolesAndFeatures | ?{$_.Name -eq "Web-Server"}).Installed) {
         Write-ShellMessage -Message "Gathering IIS information" -Type INFO;
 
-        # Get the WebAdministration module imported
-        Import-Module WebAdministration;
+        # This is wrapped in a powershell job; sometimes due to bad server configuration
+        # powershell modules just hang when trying to load. Processing this way allows 
+        # the use of a timeout to prevent the whole process getting hung up.
 
-        # Now, we need to explicitly cast the outputs of the following
-        # to PSCustomObjects as the IISConfigurationElement and other
-        # types don't serialise properly.
+        # Get the job defined in a scriptblock
+        $GetIISConfigurationJobScriptBlock = {
+            # Get the WebAdministration module imported
+            Import-Module WebAdministration;
 
-        # Get the WebSites
-        $WebSites = Get-WebSite | %{
-            New-Object PSCustomObject -Property @{
-                Name         = $_.Name;
-                ID           = $_.ID;
-                State        = $_.State;
-                PhysicalPath = $_.PhysicalPath;
-                Bindings     = @(,$(($_.Bindings | %{$_.Collection}) -join " "));
-            }
-        }
+            # Now, we need to explicitly cast the outputs of the following
+            # to PSCustomObjects as the IISConfigurationElement and other
+            # types don't serialise properly.
 
-        # Get the Application Pools
-        $ApplicationPools = gci "IIS:\AppPools" | Select -Property * | %{
-            $Name = $_.Name;
-            New-Object PSCustomObject -Property @{
-                Name                  = $Name;
-                State                 = $_.State;
-                ManagedPipelineMode   = $_.ManagedPipelineMode;
-                ManagedRuntimeVersion = $_.ManagedRuntimeVersion;
-                StartMode             = $_.StartMode;
-                AutoStart             = $_.AutoStart;
-                Applications          = @(,$((Get-WebSite | ?{$_.applicationPool -eq $Name} | Select Name).Name));
-            }
-        }
+            # Get the WebSites
+            $WebSites = Get-WebSite | %{
+                    New-Object PSCustomObject -Property @{
+                        Name         = $_.Name;
+                        ID           = $_.ID;
+                        State        = $_.State;
+                        PhysicalPath = $_.PhysicalPath;
+                        Bindings     = @(,$(($_.Bindings | %{$_.Collection}) -join " "));
+                    }
+                }
 
-        # Get the Bindings
-        $WebBindings = Get-WebBinding | %{
-            New-Object PSCustomObject -Property @{
-                Protocol           = $_.protocol;
-                BindingInformation = $_.bindingInformation;
-            }
-        }
+            # Get the Application Pools
+            $ApplicationPools = gci "IIS:\AppPools" | Select -Property * | %{
+                    $Name = $_.Name;
+                    New-Object PSCustomObject -Property @{
+                        Name                  = $Name;
+                        State                 = $_.State;
+                        ManagedPipelineMode   = $_.ManagedPipelineMode;
+                        ManagedRuntimeVersion = $_.ManagedRuntimeVersion;
+                        StartMode             = $_.StartMode;
+                        AutoStart             = $_.AutoStart;
+                        Applications          = @(,$((Get-WebSite | ?{$_.applicationPool -eq $Name} | Select Name).Name));
+                    }
+                }
 
-        # Get the Virtual Directories
-        $VirtualDirectories = Get-WebVirtualDirectory | %{
-            New-Object PSObject -Property @{
-                Name         = $_.Path.Split("/")[($_.Path.Split("/").Length)-1];
-                Path         = $_.Path;
-                PhysicalPath = $_.PhysicalPath;
-            }
-        }
+            # Get the Bindings
+            $WebBindings = Get-WebBinding | %{
+                    New-Object PSCustomObject -Property @{
+                        Protocol           = $_.protocol;
+                        BindingInformation = $_.bindingInformation;
+                    }
+                }
 
-        # Get a list .config files for each application so we can work out dependency chains
-        $ConfigFiles = Get-ChildItem "IIS:\" -Recurse | ?{$_.Name -like "*.config"} | Select FullName;
-        $ConfigFileContent = @();
-        
-        # If any are found, enumerate the collection and get the content
-        $ConfigFiles | %{
-            
-            # Get the pipeline object
-            $ConfigFile = $_;
+            # Get the Virtual Directories
+            $VirtualDirectories = Get-WebVirtualDirectory | %{
+                    New-Object PSObject -Property @{
+                        Name         = $_.Path.Split("/")[($_.Path.Split("/").Length)-1];
+                        Path         = $_.Path;
+                        PhysicalPath = $_.PhysicalPath;
+                    }
+                }
 
-            # Work out what website it belongs to
-            $WebSite = (Get-WebSite | ?{$_.PhysicalPath -like "*$($ConfigFile.Directory.FullName)*"}).Name;
+            # Get a list .config files for each application so we can work out dependency chains
+            $ConfigFiles = Get-ChildItem "IIS:\" -Recurse | ?{$_.Name -like "*.config"} | Select FullName;
+            $ConfigFileContent = @();
+                
+            # If any are found, enumerate the collection and get the content
+            $ConfigFiles | %{
+                    
+                    # Get the pipeline object
+                    $ConfigFile = $_;
 
-            # Add to the collection
-            $ConfigFileContent += $(New-Object PSCustomObject -Property @{
-                Site    = $WebSite;
-                Path    = $ConfigFile.FullName;
-                Content = $(Get-Content $ConfigFile.FullName | Out-String);
+                    # Work out what website it belongs to
+                    $WebSite = (Get-WebSite | ?{$_.PhysicalPath -like "*$($ConfigFile.Directory.FullName)*"}).Name;
+
+                    # Add to the collection
+                    $ConfigFileContent += $(New-Object PSCustomObject -Property @{
+                        Site    = $WebSite;
+                        Path    = $ConfigFile.FullName;
+                        Content = $(Get-Content $ConfigFile.FullName | Out-String);
+                    });
+                }
+
+            # Return the data we want
+            return $(New-Object PSCustomObject -Property @{
+                WebSites            = $WebSites;
+                ApplicationPools    = $ApplicationPools;
+                WebBindings         = $WebBindings;
+                VirtualDirectories  = $VirtualDirectories;
+                ConfigurationFiles  = $ConfigFileContent;
             });
         }
 
-        # Add a collection containing our IIS trees to the hostinfo object
-        Add-HostInformation -Name IISConfiguration -Value $(New-Object PSCustomObject -Property @{
-            WebSites            = $WebSites;
-            ApplicationPools    = $ApplicationPools;
-            WebBindings         = $WebBindings;
-            VirtualDirectories  = $VirtualDirectories;
-            ConfigurationFiles  = $ConfigFileContent;
-        });
+        # Ok get our desired timeout
+        $Timeout = (Get-Date).AddMinutes(2);
+
+        # Start the job
+        $GetIISConfigurationJob = Start-Job -ScriptBlock $GetIISConfigurationJobScriptBlock;
+
+        # Now we need to wait for the job to finish
+        While ("NotStarted","Starting","Running" -contains $GetIISConfigurationJob.State) {
+
+            # Ok first we need to check the timeout
+            if ($(Get-Date) -ge $Timeout) {
+                
+                # Ok kill the job
+                Remove-Job -Job $GetIISConfigurationJob -Force;
+
+                # And throw
+                throw [System.TimeoutException] "the IIS WebAdministration module import timed out";
+            }
+            else {
+                # Wait a bit longer instead
+                Start-Sleep -Seconds 5;
+            }
+        }
+
+        # Ok get the data
+        $IISConfiguration = Receive-Job -Job $GetIISConfigurationJob;
+
+        # And add the IIS data to our HostInformation collection
+        Add-HostInformation -Name IISConfiguration -Value $IISConfiguration;
     };
 }
 catch {
@@ -896,20 +942,14 @@ catch {
 
 #---------[ Apache Virtual Hosts ]---------
 try {
-    if (Get-Service | ?{$_.Name -like "*Apache*" -and $_.Name -notlike "*Tomcat*"}) {
+    if ($(try{[Void](Get-Process "httpd")}catch{$false})) {
         Write-ShellMessage -Message "Gathering Apache Virtual Host information" -Type INFO;
 
-        # Get the Apache install and httpd.exe paths
-        $ApachePath = $((Get-ChildItem "C:\Program Files (x86)\*Apache*").FullName);
-        $Httpd      = $((Get-ChildItem $ApachePath "httpd.exe" | Select -First 1).FullName);
+        # Get the Apache httpd.exe path
+        $Httpd = (Get-Process "httpd").Path;
 
-        if ($Httpd) {
-            # Add a collection containing our Apache tree to the hostinfo object
-            Add-HostInformation -Name ApacheVirtualHosts -Value $((Invoke-Expression "$httpd -S").Split("`r`n"));
-        }
-        else {
-            throw "Couldn't locate Apache httpd.exe";
-        }
+        # Add a collection containing our Apache tree to the hostinfo object
+        Add-HostInformation -Name ApacheVirtualHosts -Value $((Invoke-Expression "$httpd -S").Split("`r`n"));
     }
 }
 catch {
@@ -922,7 +962,7 @@ try {
         Write-ShellMessage -Message "Gathering Tomcat application information" -Type INFO;
 
         # Add a collection containing our Tomcat tree to the hostinfo object
-        $TomcatApplications = $((New-Object System.Net.WebClient).DownloadString("http://localhost:8080/manager/text/list").Split("`r`n"));
+        $TomcatApplications = $((New-Object System.Net.WebClient).DownloadString("http://localhost:8080/manager/list").Split("`r`n"));
         Add-HostInformation -Name TomcatApplications -Value $TomcatApplications;
     }
 }
@@ -938,6 +978,52 @@ try {
 catch {
     Write-ShellMessage -Message "Error gathering Windows service information" -Type ERROR -ErrorRecord $Error[0];
 }
+
+#---------[ Base networking topology ]---------
+try {
+    Write-ShellMessage -Message "Gathering established session and connection information" -Type INFO;
+    
+    # Ok get a full netstat and declare an output object
+    $Netstat = Invoke-Expression "netstat -ano"
+    $ConnectionInformation = @();
+    
+    # Enumerate the output from netstat
+    $Netstat | ?{$_.Contains("ESTABLISHED") -or $_.Contains("CLOSE_WAIT")} | %{
+    
+        # Ok get the netstat row into an object to process
+        $Connection = $_;
+    
+        # Split up on and dedupe spaces
+        $Properties = $Connection.Split(" ") | ?{$_};
+    
+        # Get the process object from the PID
+        $ProcessObject = Get-Process -ID $Properties[4];
+    
+        # Create a new PSCustomObject using the properties we just split out, add to the collection
+        $ConnectionInformation += $(New-Object PSCustomObject -Property @{
+            Protocol           = $Properties[0];
+            LocalAddress       = $Properties[1].Split(":")[0];
+            LocalPort          = $Properties[1].Split(":")[1];
+            RemoteAddress      = $Properties[2].Split(":")[0];
+            RemotePort         = $Properties[2].Split(":")[1];
+            State              = $Properties[3];
+            ProcessID          = $Properties[4];
+            ProcessName        = $ProcessObject.Name;
+            ProcessDescription = $ProcessObject.Description;
+            ProcessProduct     = $ProcessObject.Product;
+            ProcessFileVersion = $ProcessObject.FileVersion;
+            ProcessExePath     = $ProcessObject.Path;
+            ProcessCompany     = $ProcessObject.Company;
+        });
+    }
+
+    # And add to our HostInformation collection
+    Add-HostInformation -Name ConnectionInformation -Value $ConnectionInformation;
+}
+catch {
+    Write-ShellMessage -Message "Error gathering established session and connection information" -Type ERROR -ErrorRecord $Error[0];
+}
+
 
 #---------[ Return ]---------
 Write-ShellMessage -Message "Gathering completed" -Type SUCCESS;

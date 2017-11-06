@@ -144,6 +144,10 @@ Param(
     [String]$Filter
 )
 
+# Start transcript
+$DateStamp = Get-Date -Format "ddMMyy_HHmmss";
+[Void](Start-Transcript ".\Windows-Audit-Transcript-$env:username-$DateStamp.log");
+
 # Run the gather phase if required
 if (!($CompileOnly.IsPresent)) {
     .\Scripts\Get-WindowsAuditData.ps1 `
@@ -158,6 +162,9 @@ if (!($CompileOnly.IsPresent)) {
 if ($Compile.IsPresent -or $CompileOnly.IsPresent) {
     .\Scripts\Compile-WindowsAuditData.ps1 -Filter $Filter;
 }
+
+# Stop transcript
+[Void](Stop-Transcript);
 
 # Fin
 Exit;
