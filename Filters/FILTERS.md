@@ -181,3 +181,4 @@ _(Note: For IIS versions 5 and 6, use the `$_.IISConfigurationv5and6.*` property
 | SQL Instance Information | `$_.SQLServer` | ServerName<br /> InstanceName<br /> ConnectionIdentifier<br /> Databases<br /><br />_Databases objects enumerate to:_<br /> Name<br /> Owner<br /> CreatedDate<br /> CompatibilityLevel<br /> DBID<br /> Status<br /> Size<br /> |
 | Apache Virtual Hosts | `$_.ApacheVirtualHosts` | String[] of Virtual Hosts |
 | Tomcat Applications | `$_.TomcatApplications` | String[] of applications |
+| Networking connections | `$_.ConnectionInformation` | Protocol<br /> LocalAddress<br /> LocalPort<br /> RemoteAddress<br /> RemotePort<br /> State<br /> ProcessID<br /> ProcessName<br /> ProcessDescription<br /> ProcessProduct<br /> ProcessFileVersion<br /> ProcessExePath<br /> ProcessCompany<br /> |
