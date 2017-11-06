@@ -939,6 +939,52 @@ catch {
     Write-ShellMessage -Message "Error gathering Windows service information" -Type ERROR -ErrorRecord $Error[0];
 }
 
+#---------[ Base networking topology ]---------
+try {
+    Write-ShellMessage -Message "Gathering established session and connection information" -Type INFO;
+    
+    # Ok get a full netstat and declare an output object
+    $Netstat = Invoke-Expression "netstat -ano"
+    $ConnectionInformation = @();
+    
+    # Enumerate the output from netstat
+    $Netstat | ?{$_.Contains("ESTABLISHED") -or $_.Contains("CLOSE_WAIT")} | %{
+    
+        # Ok get the netstat row into an object to process
+        $Connection = $_;
+    
+        # Split up on and dedupe spaces
+        $Properties = $Connection.Split(" ") | ?{$_};
+    
+        # Get the process object from the PID
+        $ProcessObject = Get-Process -ID $Properties[4];
+    
+        # Create a new PSCustomObject using the properties we just split out, add to the collection
+        $ConnectionInformation += $(New-Object PSCustomObject -Property @{
+            Protocol           = $Properties[0];
+            LocalAddress       = $Properties[1].Split(":")[0];
+            LocalPort          = $Properties[1].Split(":")[1];
+            RemoteAddress      = $Properties[2].Split(":")[0];
+            RemotePort         = $Properties[2].Split(":")[1];
+            State              = $Properties[3];
+            ProcessID          = $Properties[4];
+            ProcessName        = $ProcessObject.Name;
+            ProcessDescription = $ProcessObject.Description;
+            ProcessProduct     = $ProcessObject.Product;
+            ProcessFileVersion = $ProcessObject.FileVersion;
+            ProcessExePath     = $ProcessObject.Path;
+            ProcessCompany     = $ProcessObject.Company;
+        });
+    }
+
+    # And add to our HostInformation collection
+    Add-HostInformation -Name ConnectionInformation -Value $ConnectionInformation;
+}
+catch {
+    Write-ShellMessage -Message "Error gathering established session and connection information" -Type ERROR -ErrorRecord $Error[0];
+}
+
+
 #---------[ Return ]---------
 Write-ShellMessage -Message "Gathering completed" -Type SUCCESS;
 return $HostInformation;
