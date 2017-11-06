@@ -196,8 +196,17 @@ ForEach ($Computer in $Computers) {
             }
             else {
                 # Execute the command using the default credential
-                Write-ShellMessage -Message "Connecting to '$HostName' using protocol '$Protocol' on port '$Port'" -Type INFO;
-                $HostInformation = Invoke-Command -ComputerName $Hostname -Port $Port -ScriptBlock $ScriptBlock;
+                try {
+                    Write-ShellMessage -Message "Connecting to '$HostName' using protocol '$Protocol' on port '$Port'" -Type INFO;
+                    $HostInformation = Invoke-Command -ComputerName $Hostname -Port $Port -ScriptBlock $ScriptBlock;
+                }
+                catch {
+                    Write-ShellMessage -Message "Connection to '$HostName' failed" -Type ERROR -ErrorRecord $_;
+
+                    # Fallback to PSExec instead
+                    Write-ShellMessage -Message "Attempting fallback connection: Connecting to '$HostName' using protocol 'PSExec'" -Type INFO;
+                    $HostInformation = Invoke-PSExecCommand -ComputerName $Hostname -Script $ScriptBlockPath -SerialisationDepth $SerialisationDepth; 
+                }
             }
         }
         else {
@@ -209,8 +218,17 @@ ForEach ($Computer in $Computers) {
             }
             else {
                 # Execute the command using the default credential
-                Write-ShellMessage -Message "Connecting to '$HostName' using protocol '$Protocol'" -Type INFO;
-                $HostInformation = Invoke-Command -ComputerName $Hostname -ScriptBlock $ScriptBlock;
+                try {
+                    Write-ShellMessage -Message "Connecting to '$HostName' using protocol '$Protocol'" -Type INFO;
+                    $HostInformation = Invoke-Command -ComputerName $Hostname -ScriptBlock $ScriptBlock;
+                }
+                catch {
+                    Write-ShellMessage -Message "Connection to '$HostName' failed" -Type ERROR -ErrorRecord $_;
+
+                    # Fallback to PSExec instead
+                    Write-ShellMessage -Message "Attempting fallback connection: Connecting to '$HostName' using protocol 'PSExec'" -Type INFO;
+                    $HostInformation = Invoke-PSExecCommand -ComputerName $Hostname -Script $ScriptBlockPath -SerialisationDepth $SerialisationDepth; 
+                }
             }
         }
 
