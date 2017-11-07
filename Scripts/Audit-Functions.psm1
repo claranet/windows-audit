@@ -225,7 +225,7 @@ Function Invoke-PSExecCommand {
         $Expression = "psexec -i \\$ComputerName  cmd /c powershell -Command $Command";
         
         # Invoke the PSExec command
-        Invoke-Expression $Expression;      
+        Invoke-Expression $Expression;
 
         # We need to get the cli.xml file and place it in output/rawdata;
         $CLIXMLFile = Get-ChildItem ".\Scripts\" "*.cli.xml" | Sort -Property CreationTime | Select -First 1;

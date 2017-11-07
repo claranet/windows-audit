@@ -430,7 +430,8 @@ try {
         $ShareName = $_.Name;
         
         # Get some share permission information
-        $ShareInfo = Invoke-Expression "net share $ShareName";
+        $Expr = "net share '" + $ShareName + "'";
+        $ShareInfo = Invoke-Expression $Expr;
 
         # Clean it up
         $Permissions = (($ShareInfo | ?{$_ -like "Permission*" -or $_ -like " *"}) -join "");
