@@ -636,7 +636,12 @@ try {
             Set-ExecutionPolicy Unrestricted -Force;
 
             # Get the WebAdministration module imported
-            Import-Module WebAdministration;
+            Import-Module WebAdministration -Force;
+
+            # Slight wait to fix any import latency issues
+            Try{
+                [Void](Get-WebSite);
+            } Catch [System.IO.FileNotFoundException]{}
 
             # Now, we need to explicitly cast the outputs of the following
             # to PSCustomObjects as the IISConfigurationElement and other
