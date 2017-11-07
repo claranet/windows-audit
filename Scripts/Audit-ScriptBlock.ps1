@@ -14,6 +14,10 @@ $ErrorActionPreference = "Stop";
 # Get our return object sorted out
 $HostInformation = New-Object PSCustomObject;
 
+# Get the execution policy value and set to unrestructed
+$ExecutionPolicy = Get-ExecutionPolicy;
+Set-ExecutionPolicy Unrestricted -Force;
+
 #---------[ Functions ]---------
 
 # Easy add-member function
@@ -1082,6 +1086,8 @@ catch {
     Write-ShellMessage -Message "Error gathering established session and connection information" -Type ERROR -ErrorRecord $Error[0];
 }
 
+#---------[ Fix ExecutionPolicy ]---------
+Set-ExecutionPolicy $ExecutionPolicy -Force;
 
 #---------[ Return ]---------
 Write-ShellMessage -Message "Gathering completed" -Type SUCCESS;
