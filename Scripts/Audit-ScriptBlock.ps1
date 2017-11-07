@@ -633,7 +633,7 @@ try {
         $GetIISConfigurationJobScriptBlock = {
 
             # Set the Execution policy
-            Set-ExecutionPolicy Unrestricted;
+            Set-ExecutionPolicy Unrestricted -Force;
 
             # Get the WebAdministration module imported
             Import-Module WebAdministration;
@@ -685,25 +685,22 @@ try {
             });
 
             # Get a list .config files for each application so we can work out dependency chains
-            $ConfigFiles = Get-ChildItem "IIS:\" -Recurse | ?{$_.Name -like "*.config"} | Select FullName;
             $ConfigFileContent = @();
+            $WebSites | %{
                 
-            # If any are found, enumerate the collection and get the content
-            $ConfigFiles | %{
-                    
-                    # Get the pipeline object
-                    $ConfigFile = $_;
-
-                    # Work out what website it belongs to
-                    $WebSite = (Get-WebSite | ?{$_.PhysicalPath -like "*$($ConfigFile.Directory.FullName)*"}).Name;
-
-                    # Add to the collection
+                # Get the site name and physical path
+                $WebsiteName = $_.Name;
+                $PhysicalPath = $_.PhysicalPath.Replace("%SystemDrive%",$Env:SystemDrive).Replace("%SystemRoot%",$env:SystemRoot);
+                
+                # Enumerate the config files and add to the configfilecontent array
+                Get-ChildItem -Path $PhysicalPath -Recurse | ?{$_.Name -like "*.config"} | %{
                     $ConfigFileContent += $(New-Object PSCustomObject -Property @{
-                        Site    = $WebSite;
-                        Path    = $ConfigFile.FullName;
-                        Content = $(Get-Content $ConfigFile.FullName | Out-String);
-                    });
-                }
+                        Site    = $WebsiteName;
+                        Path    = $_.FullName;
+                        Content = $(Get-Content $_.FullName | Out-String);
+                    }); 
+                };
+            };
 
             # Return the data we want
             return $(New-Object PSCustomObject -Property @{
