@@ -437,7 +437,7 @@ try {
         $Permissions = $Permissions.Replace("Permission","").Trim().Replace("   "," ");
         
         # Create a new object
-        $Share = $Shares | ?{$_.Name -eq $ShareName};
+        $Share = $WMIShares | ?{$_.Name -eq $ShareName};
         
         # Add the permission property 
         $Share | Add-Member -MemberType NoteProperty -Name SharePermissions -Value $Permissions;
@@ -631,6 +631,10 @@ try {
 
         # Get the job defined in a scriptblock
         $GetIISConfigurationJobScriptBlock = {
+
+            # Set the Execution policy
+            Set-ExecutionPolicy Unrestricted;
+
             # Get the WebAdministration module imported
             Import-Module WebAdministration;
 
@@ -639,46 +643,46 @@ try {
             # types don't serialise properly.
 
             # Get the WebSites
-            $WebSites = Get-WebSite | %{
-                    New-Object PSCustomObject -Property @{
-                        Name         = $_.Name;
-                        ID           = $_.ID;
-                        State        = $_.State;
-                        PhysicalPath = $_.PhysicalPath;
-                        Bindings     = @(,$(($_.Bindings | %{$_.Collection}) -join " "));
-                    }
-                }
+            $WebSites = $(Get-WebSite | %{
+                $(New-Object PSCustomObject -Property @{
+                    Name         = $_.Name;
+                    ID           = $_.ID;
+                    State        = $_.State;
+                    PhysicalPath = $_.PhysicalPath;
+                    Bindings     = @(,$(($_.Bindings | %{$_.Collection}) -join " "));
+                });
+            });
 
             # Get the Application Pools
-            $ApplicationPools = gci "IIS:\AppPools" | Select -Property * | %{
-                    $Name = $_.Name;
-                    New-Object PSCustomObject -Property @{
-                        Name                  = $Name;
-                        State                 = $_.State;
-                        ManagedPipelineMode   = $_.ManagedPipelineMode;
-                        ManagedRuntimeVersion = $_.ManagedRuntimeVersion;
-                        StartMode             = $_.StartMode;
-                        AutoStart             = $_.AutoStart;
-                        Applications          = @(,$((Get-WebSite | ?{$_.applicationPool -eq $Name} | Select Name).Name));
-                    }
-                }
+            $ApplicationPools = $(gci "IIS:\AppPools" | Select -Property * | %{
+                $Name = $_.Name;
+                $(New-Object PSCustomObject -Property @{
+                    Name                  = $Name;
+                    State                 = $_.State;
+                    ManagedPipelineMode   = $_.ManagedPipelineMode;
+                    ManagedRuntimeVersion = $_.ManagedRuntimeVersion;
+                    StartMode             = $_.StartMode;
+                    AutoStart             = $_.AutoStart;
+                    Applications          = @(,$((Get-WebSite | ?{$_.applicationPool -eq $Name} | Select Name).Name));
+                });
+            });
 
             # Get the Bindings
-            $WebBindings = Get-WebBinding | %{
-                    New-Object PSCustomObject -Property @{
-                        Protocol           = $_.protocol;
-                        BindingInformation = $_.bindingInformation;
-                    }
-                }
+            $WebBindings = $(Get-WebBinding | %{
+                $(New-Object PSCustomObject -Property @{
+                    Protocol           = $_.protocol;
+                    BindingInformation = $_.bindingInformation;
+                });
+            });
 
             # Get the Virtual Directories
-            $VirtualDirectories = Get-WebVirtualDirectory | %{
-                    New-Object PSObject -Property @{
-                        Name         = $_.Path.Split("/")[($_.Path.Split("/").Length)-1];
-                        Path         = $_.Path;
-                        PhysicalPath = $_.PhysicalPath;
-                    }
-                }
+            $VirtualDirectories = $(Get-WebVirtualDirectory | %{
+                $(New-Object PSObject -Property @{
+                    Name         = $_.Path.Split("/")[($_.Path.Split("/").Length)-1];
+                    Path         = $_.Path;
+                    PhysicalPath = $_.PhysicalPath;
+                });
+            });
 
             # Get a list .config files for each application so we can work out dependency chains
             $ConfigFiles = Get-ChildItem "IIS:\" -Recurse | ?{$_.Name -like "*.config"} | Select FullName;
