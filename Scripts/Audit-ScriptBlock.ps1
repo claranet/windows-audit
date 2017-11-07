@@ -529,7 +529,7 @@ catch {
 #---------[ Roles & Features ]---------
 try {
     # Check if Server or Workstation here as ServerManager isn't available on workstations
-    if ($HostInformation.OS.Caption.ToLower().Contains("server")) {
+    if ($HostInformation.OS.Caption.ToLower().Contains("server")) {       
         Write-ShellMessage -Message "Gathering roles and features information" -Type INFO;
 
         # Now, we need to do a check here to see if we're on 2003
@@ -557,6 +557,50 @@ try {
                     };
                 };
             );
+        }
+        elseif ($HostInformation.OS.Caption.Contains("2008") -and $HostInformation.OS.Caption -notlike "*R2*") {
+            # 2008 R1 only has Servermanagercmd
+            $SMCMD = Invoke-Expression "servermanagercmd -q";
+            
+            # Get the roles and features data
+            $RolesAndFeatures = @(  
+                $SMCMD | %{
+                    # Get the line containing what we want
+                    $Line = $_;
+                    
+                    # Work out whether it's the right type of line
+                    if ($Line.Contains("[X]") -or $Line.Contains("[ ]")) {
+                    
+                        # Find out if it's installed or not
+                        if ($Line.Contains("[X] ")) {
+                            # Yes it is installed, remove the tickbox
+                            $Line = $Line.Replace("[X] ","").Trim();
+                            $Installed = $True;      
+                        }
+                        else {
+                            # No it is not installed, remove the tickbox
+                            $Line = $Line.Replace("[ ] ","").Trim();
+                            $Installed = $False;
+                        }
+                                
+                        # Set the prop values
+                        $DisplayName = $Line.Split("[")[0].Trim();
+                        $Name = $Line.Split("[")[1].Trim().TrimEnd("]");
+                        
+                        
+                        # Throw the object out
+                        [PSCustomObject]@{
+                            "DisplayName" = $DisplayName;
+                            "Name"        = $Name
+                            "FeatureType" = "2008 R1 Feature/Role";
+                            "Path"        = "N/A"
+                            "Subfeatures" = "N/A"
+                            "Installed"   = $Installed;
+                        };
+                    }
+                }
+            );
+
         }
         else {
             # Import the servermanager module for the Get-WindowsFeature cmdlet
