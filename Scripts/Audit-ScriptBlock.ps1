@@ -420,7 +420,7 @@ try {
     $CustomShares = @();
 
     # Enumerate the shares from WMI
-    $Shares | Select Name | %{
+    $WMIShares | Select Name | %{
         
         # Get the sharename
         $ShareName = $_.Name;
