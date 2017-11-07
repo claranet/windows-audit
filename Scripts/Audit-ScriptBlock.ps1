@@ -1026,8 +1026,8 @@ catch {
 
 #---------[ Tomcat Web Applications ]---------
 try {
-    if (Get-Service | ?{$_.Name -like "*Tomcat*"}) {
-        Write-ShellMessage -Message "Gathering Tomcat application information" -Type INFO;
+    if (Get-Service | ?{$_.DisplayName -like "Apache Tomcat*"}) {
+        Write-ShellMessage -Message "Gathering Apache Tomcat application information" -Type INFO;
 
         # Add a collection containing our Tomcat tree to the hostinfo object
         $TomcatApplications = $((New-Object System.Net.WebClient).DownloadString("http://localhost:8080/manager/list").Split("`r`n"));
@@ -1035,7 +1035,7 @@ try {
     }
 }
 catch {
-    Write-ShellMessage -Message "Error gathering Tomcat application information" -Type ERROR -ErrorRecord $Error[0];
+    Write-ShellMessage -Message "Error gathering Apache Tomcat application information" -Type ERROR -ErrorRecord $Error[0];
 }
 
 #---------[ Windows Services ]---------
