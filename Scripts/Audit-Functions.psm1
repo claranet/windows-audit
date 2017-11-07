@@ -218,7 +218,7 @@ Function Invoke-PSExecCommand {
             'Set-ExecutionPolicy Unrestricted -ErrorAction SilentlyContinue;',
             $('$ScriptBlock = [ScriptBlock]::Create($(Get-Content "\\{0}\{1}\{2}" | Out-String));' -f $env:COMPUTERNAME,$ShareName,$ScriptFile),
             '$AuditResult = $ScriptBlock.Invoke();',
-            'return [System.Management.Automation.PSSerializer]::Serialize($AuditResult,5);'
+            $('return [System.Management.Automation.PSSerializer]::Serialize($AuditResult,{0});' -f $SerialisationDepth)
         ) -Join "";
 
         # And get the expression ready
