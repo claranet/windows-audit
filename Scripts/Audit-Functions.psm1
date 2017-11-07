@@ -303,7 +303,7 @@ Function Write-ErrorLog {
     $DateStamp = Get-Date -Format "dd/MM/yy HH:mm:ss";
 
     # Build our message output
-    $Output = [String]::Format("[{0}] [{1}] [{2}]: {3}",$DateStamp,$HostName,$Type,$Exception);
+    $Output = [String]::Format("[{0}] [{1}] [{2}]: {3}",$DateStamp,$HostName,$EventName,$Exception);
     
     # Check if our errors file exists and create if needed
     $ErrorsFile = ".\errors.log";

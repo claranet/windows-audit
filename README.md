@@ -28,7 +28,7 @@ There are a variety of sub scripts and modules however for simplicity the execut
 
 ##### Optional Parameters
 
- - `Protocol` - The protocol to use for the target computers specified in the `$Computers` parameter. Valid options are `WinRM`|`PSExec` defaulting to `WinRM` if not specified.
+ - `Protocol` - The protocol to use for the target computers specified in the `$Computers` parameter. Valid options are `WinRM`|`PSExec` defaulting to `WinRM` if not specified. If WinRM fails to connect PSExec will be tried as a fallback.
 
  - `PSCredential` - PSCredential that will be used for WinRM communications. Must be valid on the machines you're trying to connect to, defaults to the current user identity.
 
@@ -67,7 +67,6 @@ See the `Output-Example.xlsx` file in the `Examples` folder.
 
 Future Development
 ---------
- - Coalesce SQL server properties into a single table with `Instances > Databases > SP_HELPDB` structure
  - Further expand upon Apache/Tomcat sections
  - Write a proper PS type adapter for the WebAdministration module types and use this to expand on IIS properties
  - Drill down into _all_ roles and features and gather status/configuration

@@ -84,9 +84,6 @@ $ErrorActionPreference = "Stop";
 # Trigger so we know something went wrong during the process
 $WarningTrigger = $False;
 
-# Output object for holding data to write to disk
-$Output = @();
-
 #---------[ Imports ]---------
 
 # Import our functions from the lib module
@@ -134,7 +131,7 @@ if ($InputFile) {
             }
             else {
                 $HostName = $Line;
-                $Protocol = $WinRM;
+                $Protocol = "WinRM";
             }
 
             # Write out and add the computer object
@@ -156,6 +153,22 @@ else {
     Write-ShellMessage -Message "Parsing supplied list of computers" -Type INFO;
     $HostCount = $Computers.Count;
 }
+
+#---------[ Create the output folder ]---------
+
+# Check if our RawData folder exists
+$RawDataFolder = ".\Output\RawData";
+if (!(Test-Path $RawDataFolder)) {
+    try {
+        Write-ShellMessage -Message "XML output folder '$RawDatafolder' does not exist, creating" -Type DEBUG;
+        [Void](New-Item $RawDataFolder -ItemType Directory -Force);
+    }
+    catch {
+        Write-ShellMessage -Message "XML output folder could not be created" -Type ERROR -ErrorRecord $_;
+        Exit(1);
+    }
+}
+
 
 #---------[ Main() ]---------
 
@@ -232,9 +245,25 @@ ForEach ($Computer in $Computers) {
             }
         }
 
-        # And add to the output
-        Write-ShellMessage -Message "Adding host information for '$HostName' to the output collection" -Type DEBUG;
-        $Output += $HostInformation;
+        # Now we want to write to disk inside the loop
+        try {
+            # Get our filename
+            $DNSName = $HostInformation.OS.CSName;
+            $OutputFileName = "$RawDataFolder\$DNSName.cli.xml";
+    
+            # Write to disk
+            Write-ShellMessage -Message "Writing '$OutputFileName' to disk" -Type DEBUG;
+            Export-Clixml -InputObject $HostInformation -Path $OutputFileName -Depth $SerialisationDepth -Force;
+        }
+        catch {
+            # Write out and set our warning trigger
+            Write-ShellMessage -Message "There was an error attempting to serialise data for '$Hostname' and write it to disk" -Type ERROR -ErrorRecord $_;
+            $WarningTrigger = $True;
+    
+            # Write to error log file
+            Write-ErrorLog -HostName $HostName -EventName "WriteToDisk" -Exception $($_.Exception.Message);
+        }
+
     }
     catch {
         # Write out and set our warning trigger
@@ -248,46 +277,6 @@ ForEach ($Computer in $Computers) {
 
 # Kill our progress bar as we're done
 Write-Progress -Activity "Gathering audit data" -Completed;
-
-# Check if our RawData folder exists
-Write-ShellMessage -Message "Begining data write to disk" -Type INFO;
-$RawDataFolder = ".\Output\RawData";
-if (!(Test-Path $RawDataFolder)) {
-    try {
-        Write-ShellMessage -Message "XML output folder '$RawDatafolder' does not exist, creating" -Type DEBUG;
-        [Void](New-Item $RawDataFolder -ItemType Directory -Force);
-    }
-    catch {
-        Write-ShellMessage -Message "XML output folder could not be created" -Type ERROR -ErrorRecord $_;
-        Exit(1);
-    }
-}
-
-# Write XML to disk
-$Output | %{
-    try {
-        # Get the pipe object
-        $HostInformation = $_;
-
-        # Get the hostname
-        $Hostname = $HostInformation.OS.CSName;
-
-        # Get our filename
-        $OutputFileName = "$RawDataFolder\$Hostname.cli.xml";
-
-        # Write to disk
-        Write-ShellMessage -Message "Writing '$OutputFileName' to disk" -Type DEBUG;
-        Export-Clixml -InputObject $HostInformation -Path $OutputFileName -Depth $SerialisationDepth -Force;
-    }
-    catch {
-        # Write out and set our warning trigger
-        Write-ShellMessage -Message "There was an error attempting to serialise data for '$Hostname' and write it to disk" -Type ERROR -ErrorRecord $_;
-        $WarningTrigger = $True;
-
-        # Write to error log file
-        Write-ErrorLog -HostName $HostName -EventName "WriteToDisk" -Exception $($_.Exception.Message);
-    }
-}
 
 #---------[ Fin ]---------
 
