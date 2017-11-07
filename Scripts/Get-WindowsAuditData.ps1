@@ -78,6 +78,10 @@ Param(
 
 #---------[ Global Declarations ]---------
 
+# Get the execution policy value and set to unrestructed
+$ExecutionPolicy = Get-ExecutionPolicy;
+Set-ExecutionPolicy Unrestricted -Force;
+
 # EAP to stop so we can trap errors in catch blocks
 $ErrorActionPreference = "Stop";
 
@@ -288,5 +292,8 @@ else {
     $FinalMessage = "Audit data gathering for $HostCount computers has completed successfully";
     Write-ShellMessage -Message $FinalMessage -Type SUCCESS;
 }
+
+#---------[ Set the exec policy back to what it was ]---------
+Set-ExecutionPolicy $ExecutionPolicy -Force;
 
 Exit;

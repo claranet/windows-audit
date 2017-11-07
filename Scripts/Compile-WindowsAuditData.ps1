@@ -31,6 +31,10 @@ Param(
 
 #---------[ Global Declarations ]---------
 
+# Get the execution policy value and set to unrestructed
+$ExecutionPolicy = Get-ExecutionPolicy;
+Set-ExecutionPolicy Unrestricted -Force;
+
 # EAP to stop so we can trap errors in catch blocks
 $ErrorActionPreference = "Stop";
 
@@ -86,6 +90,9 @@ $CliXmlFilesToProcess | %{
     # And pass the result on to the correct filter for execution
     & $FilterPath -HostInformation $HostInformation;
 }
+
+#---------[ Set the exec policy back to what it was ]---------
+Set-ExecutionPolicy $ExecutionPolicy -Force;
 
 #---------[ Fin ]---------
 Exit;
