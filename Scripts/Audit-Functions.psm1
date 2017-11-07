@@ -217,7 +217,7 @@ Function Invoke-PSExecCommand {
         $Command = @(
             'Set-ExecutionPolicy Unrestricted -ErrorAction SilentlyContinue;',
             $('$ScriptBlock = [ScriptBlock]::Create($(Get-Content "\\{0}\{1}\{2}" | Out-String));' -f $env:COMPUTERNAME,$ShareName,$ScriptFile),
-            '$AuditResult = $ScriptBlock.Invoke();',
+            $('$AuditResult = $ScriptBlock.Invoke(@($True,"\\{0}\{1}"));' -f $env:COMPUTERNAME,$ShareName),
             $('return [System.Management.Automation.PSSerializer]::Serialize($AuditResult,{0});' -f $SerialisationDepth)
         ) -Join "";
 
@@ -225,17 +225,35 @@ Function Invoke-PSExecCommand {
         $Expression = "psexec -i \\$ComputerName  cmd /c powershell -Command $Command";
         
         # Invoke the PSExec command
-        $RawOutput = Invoke-Expression $Expression;
+        Invoke-Expression $Expression;      
 
-        # Clean up the output
-        $RawOutput = $RawOutput -replace "PsExec v(.*) - Execute processes remotely","";
-        $RawOutput = $RawOutput -replace "Copyright \(C\) (.*) Mark Russinovich","";
-        $RawOutput = $RawOutput -replace "Sysinternals - www.sysinternals.com","";
-        $RawOutput = $RawOutput | ?{![String]::IsNullOrEmpty($_)};
-        [PSCustomObject]$Output = [System.Management.Automation.PSSerializer]::Deserialize($RawOutput);
+        # We need to get the cli.xml file and place it in output/rawdata;
+        $CLIXMLFile = Get-ChildItem ".\Scripts\" "*.cli.xml" | Sort -Property CreationTime | Select -First 1;
 
-        # And return the goods
-        return $Output;
+        # We need to get the output log file, parse in and write to local host
+        $PSExecLogFile = Get-ChildItem ".\Scripts\" "*.log" | Sort -Property CreationTime | Select -First 1;
+        
+        if ($PSExecLogFile) {
+            Get-Content $PSExecLogFile.FullName | %{
+                Write-Host $_;
+            }
+            Remove-Item $PSExecLogFile -Force;
+        }
+        else {
+            throw [System.IO.FileNotFoundException] "Unable to find output log file for PSExec run";
+        }
+
+        # Import the CLI XML in from the file as $RawOutput
+        if ($CLIXMLFile) {
+            $Output = Import-Clixml -Path $CLIXMLFile.FullName;
+            Remove-Item $CLIXMLFile.FullName -Force;
+
+            # And return the goods
+            return $Output;
+        }
+        else {
+            throw [System.IO.FileNotFoundException] "Unable to find CLI XML output file for PSExec run";
+        }
     }
     catch {
         throw $Error[0];
