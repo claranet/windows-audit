@@ -633,7 +633,7 @@ try {
         $GetIISConfigurationJobScriptBlock = {
 
             # Set the Execution policy
-            Set-ExecutionPolicy Unrestricted;
+            Set-ExecutionPolicy Unrestricted -Force;
 
             # Get the WebAdministration module imported
             Import-Module WebAdministration;
