@@ -1,3 +1,11 @@
+[Cmdletbinding()]
+Param(
+    [Parameter(Mandatory=$False)]
+    [Bool]$SurpressOutput,
+    [Parameter(Mandatory=$False)]
+    [String]$WritebackPath
+)
+
 #---------[ Declarations ]---------
 
 # EAP to stop so we can trap errors in catch blocks
@@ -143,7 +151,13 @@ Function Write-ShellMessage {
     }
 
     # And write out
-    Write-Host $Output -ForegroundColor $C;
+    if ($Script:SurpressOutput) {
+        $OutputFilePath = $Script:WritebackPath + "\$env:computername-logoutput.txt";
+        Add-Content -Path $OutputFilePath -Value $Output;
+    }
+    else {
+        Write-Host $Output -ForegroundColor $C;
+    }
 }
 
 # Alternative firewall rule gathering for Server 2003
@@ -1027,4 +1041,10 @@ catch {
 
 #---------[ Return ]---------
 Write-ShellMessage -Message "Gathering completed" -Type SUCCESS;
-return $HostInformation;
+if ($Script:SurpressOutput) {
+    $ExportPath = $Script:WritebackPath + "\" + $env:COMPUTERNAME + ".cli.xml";
+    $HostInformation | Export-Clixml -Path $ExportPath -Force;
+}
+else {
+    return $HostInformation;
+}
