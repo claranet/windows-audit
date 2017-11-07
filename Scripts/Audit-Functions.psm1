@@ -225,7 +225,7 @@ Function Invoke-PSExecCommand {
         $Expression = "psexec -i \\$ComputerName  cmd /c powershell -Command $Command";
         
         # Invoke the PSExec command
-        Invoke-Expression $Expression;
+        $Process = Start-Process "psexec" -ArgumentList "-i","\\$ComputerName","cmd","/c","powershell","-Command",$Command -Wait;
 
         # We need to get the cli.xml file and place it in output/rawdata;
         $CLIXMLFile = Get-ChildItem ".\Scripts\" "*.cli.xml" | Sort -Property CreationTime | Select -First 1;
@@ -241,6 +241,11 @@ Function Invoke-PSExecCommand {
         }
         else {
             throw [System.IO.FileNotFoundException] "Unable to find output log file for PSExec run";
+        }
+
+        # Check the exit code and see whether PSExec worked successfully
+        if ($Process.ExitCode -ne 0) {
+            throw "There was a problem executing the '$Script' file over PSExec on target '$HostName'";
         }
 
         # Import the CLI XML in from the file as $RawOutput
