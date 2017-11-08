@@ -191,7 +191,7 @@ Function Invoke-PSExecCommand {
     Param(
         [Parameter(Mandatory=$True)]
         [ValidateNotNullOrEmpty()]
-        [String]$ServerName,
+        [String]$ComputerName,
         [Parameter(Mandatory=$True)]
         [ValidateNotNullOrEmpty()]
         [String]$ScriptFile,
@@ -231,7 +231,7 @@ Function Invoke-PSExecCommand {
 
             # Build the command
             $Local = "echo $Chunk >> $Filename";
-            $Cmd = 'psexec -accepteula -nobanner \\'+$ServerName+' -u '+$Username+' -p '+$Password+' cmd /c "'+$Local+'"';
+            $Cmd = 'psexec -accepteula -nobanner \\'+$ComputerName+' -u '+$Username+' -p '+$Password+' cmd /c "'+$Local+'"';
 
             # Transmit the chunk
             $Row = Invoke-Expression $("cmd /c $Cmd --% 2>&1") | ?{$_ -like "*error*"};
@@ -254,7 +254,7 @@ Function Invoke-PSExecCommand {
         Write-Progress -Activity "Transferring '$ScriptFile' over PSExec" -Status "Processing final chunk";
         $Chunk = $Encoded.Substring($ChunkPointer);
         $Local = "echo $Chunk >> $Filename";
-        $Cmd = 'psexec -accepteula -nobanner \\'+$ServerName+' -u '+$Username+' -p '+$Password+' cmd /c "'+$Local+'"';
+        $Cmd = 'psexec -accepteula -nobanner \\'+$ComputerName+' -u '+$Username+' -p '+$Password+' cmd /c "'+$Local+'"';
         $Row = Invoke-Expression $("cmd /c $Cmd --% 2>&1") | ?{$_ -like "*error*"};
         if (!($Row -like "*error code 0*")) {
             throw $Row;
@@ -264,7 +264,7 @@ Function Invoke-PSExecCommand {
         # Now we want to re-assemble the file
         Write-ShellMessage -Message "Assembling script file" -Type DEBUG;
         $Assemble = '$C=Get-Content {0}|Out-String;$B=[Convert]::FromBase64String($C);$S=[System.Text.Encoding]::Unicode.GetString($B);Set-Content Audit-ScriptBlock.ps1 -value $S' -f $FileName;
-        $PSExec = "psexec -accepteula -nobanner \\$ServerName -u $Username -p $Password PowerShell -ExecutionPolicy Unrestricted -Command '$Assemble'";
+        $PSExec = "psexec -accepteula -nobanner \\$ComputerName -u $Username -p $Password PowerShell -ExecutionPolicy Unrestricted -Command '$Assemble'";
         $Row = Invoke-Expression $("cmd /c $PSExec --% 2>&1") | ?{$_ -like "*error*"};
             if (!($Row -like "*error code 0*")) {
         throw $Row;
@@ -272,12 +272,12 @@ Function Invoke-PSExecCommand {
 
         # Now we want to invoke the script
         Write-ShellMessage -Message "Executing script file" -Type DEBUG;
-        $Execute = "psexec -accepteula -nobanner \\$ServerName -u $Username -p $Password PowerShell -ExecutionPolicy Unrestricted -File Audit-ScriptBlock.ps1 -x";
+        $Execute = "psexec -accepteula -nobanner \\$ComputerName -u $Username -p $Password PowerShell -ExecutionPolicy Unrestricted -File Audit-ScriptBlock.ps1 -x";
         $Result = Invoke-Expression $("cmd /c $Execute --% 2>&1")
 
         # Now delete the trash
         Write-ShellMessage -Message "Cleaning up" -Type DEBUG;
-        $PSExec = 'psexec -accepteula -nobanner \\'+$ServerName+' -u '+$Username+' -p '+$Password+' cmd /c "del /f Audit-ScriptBlock.ps1,{0}"' -F $FileName;
+        $PSExec = 'psexec -accepteula -nobanner \\'+$ComputerName+' -u '+$Username+' -p '+$Password+' cmd /c "del /f Audit-ScriptBlock.ps1,{0}"' -F $FileName;
         $Row = Invoke-Expression $("cmd /c $PSExec --% 2>&1") | ?{$_ -like "*error*"};
         if (!($Row -like "*error code 0*")) {
             throw $Row;
@@ -293,10 +293,24 @@ Function Invoke-PSExecCommand {
             $_ -notlike "Starting PowerShell on *" -and `
             $_ -notlike "PowerShell exited on *"`
         }) -join "`r`n";
-        
+
         $Output = $Result.Substring(0,$Result.IndexOf("<Objs"));
         $XML = $Result.Replace($Output,"");
         
+        # Write the captured output
+        $Output.Split("`r`n") | ?{$_} | %{
+            # Work out what colour it should be
+            Switch -Regex ($_) {
+                "DEBUG\]\:"   {$Col = "Magenta"};
+                "INFO\]\:"    {$Col = "Cyan"};
+                "WARNING\]\:" {$Col = "Yellow"};
+                "SUCCESS\]\:" {$Col = "Green"};
+                "ERROR\]\:"   {$Col = "Red"};
+            }
+            # Write it
+            Write-Host $_ -ForegroundColor $Col;
+        }
+
         # Deserialise the info
         $HostInformation = [System.Management.Automation.PSSerializer]::Deserialize($XML);
 
@@ -305,9 +319,8 @@ Function Invoke-PSExecCommand {
 
     }
     catch {
-        Write-ShellMessage -Message "Error running script '$ScriptFile' on server '$ServerName'" -Type ERROR -ErrorRecord $Error[0];
+        Write-ShellMessage -Message "Error running script '$ScriptFile' on server '$ComputerName'" -Type ERROR -ErrorRecord $Error[0];
     }
-
 }
 
 # Writes pretty log messages
