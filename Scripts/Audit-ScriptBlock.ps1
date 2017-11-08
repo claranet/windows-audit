@@ -1,10 +1,4 @@
-[Cmdletbinding()]
-Param(
-    [Parameter(Mandatory=$False)]
-    [Bool]$SurpressOutput,
-    [Parameter(Mandatory=$False)]
-    [String]$WritebackPath
-)
+Param([Switch]$X)
 
 #---------[ Declarations ]---------
 
@@ -155,13 +149,7 @@ Function Write-ShellMessage {
     }
 
     # And write out
-    if ($Script:SurpressOutput) {
-        $OutputFilePath = $Script:WritebackPath + "\$env:computername-logoutput.txt";
-        Add-Content -Path $OutputFilePath -Value $Output;
-    }
-    else {
-        Write-Host $Output -ForegroundColor $C;
-    }
+    Write-Host $Output -ForegroundColor $C;
 }
 
 # Alternative firewall rule gathering for Server 2003
@@ -1098,9 +1086,8 @@ Set-ExecutionPolicy $ExecutionPolicy -Force;
 
 #---------[ Return ]---------
 Write-ShellMessage -Message "Gathering completed" -Type SUCCESS;
-if ($Script:SurpressOutput) {
-    $ExportPath = $Script:WritebackPath + "\" + $env:COMPUTERNAME + ".cli.xml";
-    $HostInformation | Export-Clixml -Path $ExportPath -Force;
+if ($X.IsPresent) {
+    return [System.Management.Automation.PSSerializer]::Serialize($HostInformation,5);
 }
 else {
     return $HostInformation;
