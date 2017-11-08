@@ -68,7 +68,7 @@ Param(
     [String]$Protocol = "WinRM",
 
     # PSCredential that will be used for WinRM to connect to the target machines
-    [Parameter(Mandatory=$False)]
+    [Parameter(Mandatory=$True)]
     [PSCredential]$PSCredential,
 
     # Override for the ExportDepth to CLI XML
@@ -202,7 +202,7 @@ ForEach ($Computer in $Computers) {
         if ($Protocol -eq "PSExec") {
             # Ok let's call PSExec
             Write-ShellMessage -Message "Connecting to '$HostName' using protocol '$Protocol'" -Type INFO;
-            $HostInformation = Invoke-PSExecCommand -ComputerName $Hostname -Script $ScriptBlockPath -SerialisationDepth $SerialisationDepth; 
+            $HostInformation = Invoke-PSExecCommand -ComputerName $Hostname -Script $ScriptBlockPath -PSCredential $PSCredential;
         }
         elseif ($Port) {
             # Ok we're hitting a non standard port over WinRM, check if we're using a PSCredential and hit it
@@ -222,7 +222,7 @@ ForEach ($Computer in $Computers) {
 
                     # Fallback to PSExec instead
                     Write-ShellMessage -Message "Attempting fallback connection: Connecting to '$HostName' using protocol 'PSExec'" -Type INFO;
-                    $HostInformation = Invoke-PSExecCommand -ComputerName $Hostname -Script $ScriptBlockPath -SerialisationDepth $SerialisationDepth; 
+                    $HostInformation = Invoke-PSExecCommand -ComputerName $Hostname -Script $ScriptBlockPath -PSCredential $PSCredential;
                 }
             }
         }
@@ -244,7 +244,7 @@ ForEach ($Computer in $Computers) {
 
                     # Fallback to PSExec instead
                     Write-ShellMessage -Message "Attempting fallback connection: Connecting to '$HostName' using protocol 'PSExec'" -Type INFO;
-                    $HostInformation = Invoke-PSExecCommand -ComputerName $Hostname -Script $ScriptBlockPath -SerialisationDepth $SerialisationDepth; 
+                    $HostInformation = Invoke-PSExecCommand -ComputerName $Hostname -Script $ScriptBlockPath -PSCredential $PSCredential;
                 }
             }
         }

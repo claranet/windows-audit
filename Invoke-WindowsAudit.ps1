@@ -111,7 +111,7 @@ Param(
     [String]$Protocol = "WinRM",
 
     # PSCredential that will be used for WinRM to connect to the target machines
-    [Parameter(Mandatory=$False)]
+    [Parameter(Mandatory=$True)]
     [Parameter(ParameterSetName="InputFile")]
     [Parameter(ParameterSetName="ComputerList")]
     [ValidateNotNullOrEmpty()]
