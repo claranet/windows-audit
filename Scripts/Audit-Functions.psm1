@@ -187,85 +187,127 @@ Function Is-HyperThreadingEnabled {
 
 # Invokes a PowerShell-over-PSExec command
 Function Invoke-PSExecCommand {
-    [CmdletBinding()]
+    [Cmdletbinding()]
     Param(
         [Parameter(Mandatory=$True)]
         [ValidateNotNullOrEmpty()]
-        [String]$ComputerName,
+        [String]$ServerName,
         [Parameter(Mandatory=$True)]
         [ValidateNotNullOrEmpty()]
-        [String]$Script,
-        [Parameter(Mandatory=$false)]
+        [String]$ScriptFile,
+        [Parameter(Mandatory=$True)]
         [ValidateNotNullOrEmpty()]
-        [Int]$SerialisationDepth = 5
+        [System.Management.Automation.PSCredential]$PSCredential
     )
 
-    # Trapped to take advantage of finally block
     try {
-        # Ok we need to get an object containing the properties we want
-        $ScriptFileObject = Get-Item $Script;
-        
-        # Then tune a few properties we need
-        $ScriptPath = $ScriptFileObject.Directory.FullName;
-        $ShareName  = ($ScriptFileObject.BaseName -replace '[^a-zA-Z]','') + '$';
-        $ScriptFile = $ScriptFileObject.Name;
 
-        # Then we need to share the script path with the script name we parsed
-        [Void](New-SMBShare -Name $ShareName -Path $ScriptPath -FullAccess "Everyone");
+        # Get the username and password from the PSCredential
+        $Username = $PSCredential.UserName;
+        $Password = $PSCredential.GetNetworkCredential().Password;
 
-        # Get the command built; Unrestricted policy is for PSv2 compatibility, the scope is this execution only
-        $Command = @(
-            'Set-ExecutionPolicy Unrestricted -ErrorAction SilentlyContinue;',
-            $('$ScriptBlock = [ScriptBlock]::Create($(Get-Content "\\{0}\{1}\{2}" | Out-String));' -f $env:COMPUTERNAME,$ShareName,$ScriptFile),
-            $('$AuditResult = $ScriptBlock.Invoke(@($True,"\\{0}\{1}"));' -f $env:COMPUTERNAME,$ShareName),
-            $('return [System.Management.Automation.PSSerializer]::Serialize($AuditResult,{0});' -f $SerialisationDepth)
-        ) -Join "";
+        # Get the contents of the script
+        $Content = Get-Content $ScriptFile;
 
-        # And get the expression ready
-        $Expression = "psexec -i \\$ComputerName  cmd /c powershell -Command $Command";
-        
-        # Invoke the PSExec command
-        $Process = Start-Process "psexec" -ArgumentList "-i","\\$ComputerName","cmd","/c","powershell","-Command",$Command -Wait;
+        # Trim out the fat
+        $Content = $Content | ?{$_ -notmatch '#(.*)' -and ![String]::IsNullOrEmpty($_)} | Out-String;
 
-        # We need to get the cli.xml file and place it in output/rawdata;
-        $CLIXMLFile = Get-ChildItem ".\Scripts\" "*.cli.xml" | Sort -Property CreationTime | Select -First 1;
+        # Encode it to a base 64 string
+        $Bytes = [System.Text.Encoding]::Unicode.GetBytes($Content);
+        $Encoded = [Convert]::ToBase64String($Bytes);
 
-        # We need to get the output log file, parse in and write to local host
-        $PSExecLogFile = Get-ChildItem ".\Scripts\" "*.log" | Sort -Property CreationTime | Select -First 1;
-        
-        if ($PSExecLogFile) {
-            Get-Content $PSExecLogFile.FullName | %{
-                Write-Host $_;
+        # Generate our temp filename
+        $FileName = [Guid]::NewGuid().Guid + ".txt";
+
+        # Define the chunk pointer and size we want to transmit
+        $ChunkPointer = 0;
+        $ChunkSize = 210;
+
+        # Loop over the encoded string and chunk it
+        While ($ChunkPointer -le ($Encoded.Length-$ChunkSize)) {
+
+            # Get the chunk we want to transmit
+            $Chunk = $Encoded.Substring($ChunkPointer,$ChunkSize);
+
+            # Build the command
+            $Local = "echo $Chunk >> $Filename";
+            $Cmd = 'psexec -accepteula -nobanner \\'+$ServerName+' -u '+$Username+' -p '+$Password+' cmd /c "'+$Local+'"';
+
+            # Transmit the chunk
+            $Row = Invoke-Expression $("cmd /c $Cmd --% 2>&1") | ?{$_ -like "*error*"};
+            if (!($Row -like "*error code 0*")) {
+                throw $Row;
             }
-            Remove-Item $PSExecLogFile -Force;
-        }
-        else {
-            throw [System.IO.FileNotFoundException] "Unable to find output log file for PSExec run";
+
+            # Increment the chunk pointer
+            $ChunkPointer += $ChunkSize;
+    
+            # Progress meter
+            Write-Progress `
+                -Activity "Transferring '$ScriptFile' over PSExec" `
+                -Status "Processing chunk $($ChunkPointer/$ChunkSize) of $([Math]::Ceiling($Encoded.Length/$ChunkSize))" `
+                -PercentComplete $(((($ChunkPointer/$ChunkSize)/($Encoded.Length/$ChunkSize)))*100);
+
         }
 
-        # Check the exit code and see whether PSExec worked successfully
-        if ($Process.ExitCode -ne 0) {
-            throw "There was a problem executing the '$Script' file over PSExec on target '$HostName'";
+        # Grab the last portion and transmit it
+        Write-Progress -Activity "Transferring '$ScriptFile' over PSExec" -Status "Processing final chunk";
+        $Chunk = $Encoded.Substring($ChunkPointer);
+        $Local = "echo $Chunk >> $Filename";
+        $Cmd = 'psexec -accepteula -nobanner \\'+$ServerName+' -u '+$Username+' -p '+$Password+' cmd /c "'+$Local+'"';
+        $Row = Invoke-Expression $("cmd /c $Cmd --% 2>&1") | ?{$_ -like "*error*"};
+        if (!($Row -like "*error code 0*")) {
+            throw $Row;
+        }
+        Write-Progress -Activity "Transferring '$ScriptFile' over PSExec" -Completed;
+
+        # Now we want to re-assemble the file
+        Write-ShellMessage -Message "Assembling script file" -Type DEBUG;
+        $Assemble = '$C=Get-Content {0}|Out-String;$B=[Convert]::FromBase64String($C);$S=[System.Text.Encoding]::Unicode.GetString($B);Set-Content Audit-ScriptBlock.ps1 -value $S' -f $FileName;
+        $PSExec = "psexec -accepteula -nobanner \\$ServerName -u $Username -p $Password PowerShell -ExecutionPolicy Unrestricted -Command '$Assemble'";
+        $Row = Invoke-Expression $("cmd /c $PSExec --% 2>&1") | ?{$_ -like "*error*"};
+            if (!($Row -like "*error code 0*")) {
+        throw $Row;
         }
 
-        # Import the CLI XML in from the file as $RawOutput
-        if ($CLIXMLFile) {
-            $Output = Import-Clixml -Path $CLIXMLFile.FullName;
-            Remove-Item $CLIXMLFile.FullName -Force;
+        # Now we want to invoke the script
+        Write-ShellMessage -Message "Executing script file" -Type DEBUG;
+        $Execute = "psexec -accepteula -nobanner \\$ServerName -u $Username -p $Password PowerShell -ExecutionPolicy Unrestricted -File Audit-ScriptBlock.ps1 -x";
+        $Result = Invoke-Expression $("cmd /c $Execute --% 2>&1")
 
-            # And return the goods
-            return $Output;
+        # Now delete the trash
+        Write-ShellMessage -Message "Cleaning up" -Type DEBUG;
+        $PSExec = 'psexec -accepteula -nobanner \\'+$ServerName+' -u '+$Username+' -p '+$Password+' cmd /c "del /f Audit-ScriptBlock.ps1,{0}"' -F $FileName;
+        $Row = Invoke-Expression $("cmd /c $PSExec --% 2>&1") | ?{$_ -like "*error*"};
+        if (!($Row -like "*error code 0*")) {
+            throw $Row;
         }
-        else {
-            throw [System.IO.FileNotFoundException] "Unable to find CLI XML output file for PSExec run";
-        }
+
+        # Clean the result
+        Write-ShellMessage -Message "Readying results" -Type DEBUG;
+        $Result = $($Result | ?{`
+            $_ -and `
+            $_ -notlike "Connecting to *" -and `
+            $_ -notlike "Starting PSEXESVC service*" -and `
+            $_ -notlike "Connecting with PsExec *" -and `
+            $_ -notlike "Starting PowerShell on *" -and `
+            $_ -notlike "PowerShell exited on *"`
+        }) -join "`r`n";
+        
+        $Output = $Result.Substring(0,$Result.IndexOf("<Objs"));
+        $XML = $Result.Replace($Output,"");
+        
+        # Deserialise the info
+        $HostInformation = [System.Management.Automation.PSSerializer]::Deserialize($XML);
+
+        # And return the host information
+        return $HostInformation;
+
     }
     catch {
-        throw $Error[0];
+        Write-ShellMessage -Message "Error running script '$ScriptFile' on server '$ServerName'" -Type ERROR -ErrorRecord $Error[0];
     }
-    finally {
-        [Void](Get-SMBShare -Name $ShareName -ErrorAction SilentlyContinue | Remove-SMBShare -Force);
-    }
+
 }
 
 # Writes pretty log messages
