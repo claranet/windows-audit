@@ -392,3 +392,35 @@ Function Write-ErrorLog {
     # Add the content to the file
     Add-Content -Path $ErrorsFile -Value $Output;
 }
+
+# Tests a remote connection and returns the available connection method
+Function Test-RemoteConnection {
+    [Cmdletbinding()]
+    Param(
+        [Parameter(Mandatory=$True)]
+        [ValidateNotNullOrEmpty()]
+        [String]$ComputerName,
+        [Parameter(Mandatory=$True)]
+        [ValidateNotNullOrEmpty()]
+        [System.Management.Automation.PSCredential]$PSCredential
+    )
+
+    # Try WinRM connection as this is preferred
+    if ($(Try{[Void](Test-WSMan -ComputerName $Computer -Credential $PSCredential -Authentication Default);$True}Catch{$False})) {
+        return "WinRM";
+    }
+
+    # PSExec, fallback connection test
+    $Username = $PSCredential.UserName;
+    $Password = $PSCredential.GetNetworkCredential().Password;
+    $Cmd = 'cmd /c psexec \\win-test -u '+$Username+' -p '+$Password+' /accepteula cmd /c echo connectionsuccessfulmsg';
+    $PSExecResult = Invoke-Expression $("$Cmd --% 2>&1");
+
+    if (($PSExecResult -Join " ").Contains("connectionsuccessfulmsg")) {
+        return "PSExec";
+    }
+
+    # No remote connectivity
+    $ErrorMessage = "The machine '$ComputerName' is not responding on any communication method. Please enable WinRM or PSExec on the target machine and try again";
+    throw [System.PlatformNotSupportedException] $ErrorMessage;
+}
