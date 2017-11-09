@@ -1,3 +1,4 @@
+# The -X switch governs how this scriptblock returns data, Used for PSExec return only.
 Param([Switch]$X)
 
 #---------[ Declarations ]---------
