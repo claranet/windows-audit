@@ -45,7 +45,7 @@ $WarningTrigger = $False;
 
 # Import our functions from the lib module
 try {
-    Import-Module ".\Scripts\Audit-Functions.psm1" -DisableNameChecking;
+    Import-Module ".\Scripts\Audit-Functions.psm1" -DisableNameChecking -Force;
 }
 catch {
     # Can't use Write-ShellMessage here as the module didn't import
@@ -94,6 +94,7 @@ else {
 
 # Loop to execute on targeted computers
 $C = 0;
+$HostCount = $ComputersToProcess.Count;
 ForEach ($Computer in $ComputersToProcess) {
     try {
         # Increment our counter here and write-progress
@@ -101,16 +102,16 @@ ForEach ($Computer in $ComputersToProcess) {
         Write-Progress -Activity "Gathering audit data" -Status "Processing computer $C of $HostCount" -PercentComplete $(($C/$HostCount)*100);
 
         # Now we need to get the protocol to use
-        $Protocol = Test-RemoteConnection -ComputerName $HostName -PSCredential $PSCredential;
+        $Protocol = Test-RemoteConnection -ComputerName $Computer -PSCredential $PSCredential;
 
         # Quick status message and execute the command using the protcol we got earlier
-        Write-ShellMessage -Message "Connecting to '$HostName' using protocol '$Protocol' with PSCredential for '$($PSCredential.UserName)'" -Type INFO;
+        Write-ShellMessage -Message "Connecting to '$Computer' using protocol '$Protocol' with PSCredential for '$($PSCredential.UserName)'" -Type INFO;
         Switch ($Protocol) {
             "WinRM" {               
-                $HostInformation = Invoke-Command -ComputerName $Hostname -ScriptBlock $ScriptBlock -Credential $PSCredential;
+                $HostInformation = Invoke-Command -ComputerName $Computer -ScriptBlock $ScriptBlock -Credential $PSCredential;
             }
             "PSExec" {
-                $HostInformation = Invoke-PSExecCommand -ComputerName $Hostname -Script $ScriptBlockPath -PSCredential $PSCredential;
+                $HostInformation = Invoke-PSExecCommand -ComputerName $Computer -Script $ScriptBlockPath -PSCredential $PSCredential;
             }
         }
 
@@ -122,25 +123,25 @@ ForEach ($Computer in $ComputersToProcess) {
     
             # Write to disk
             Write-ShellMessage -Message "Writing '$OutputFileName' to disk" -Type DEBUG;
-            Export-Clixml -InputObject $HostInformation -Path $OutputFileName -Depth $SerialisationDepth -Force;
+            Export-Clixml -InputObject $HostInformation -Path $OutputFileName -Force;
         }
         catch {
             # Write out and set our warning trigger
-            Write-ShellMessage -Message "There was an error attempting to serialise data for '$Hostname' and write it to disk" -Type ERROR -ErrorRecord $_;
+            Write-ShellMessage -Message "There was an error attempting to serialise data for '$Computer' and write it to disk" -Type ERROR -ErrorRecord $_;
             $WarningTrigger = $True;
     
             # Write to error log file
-            Write-ErrorLog -HostName $HostName -EventName "WriteToDisk" -Exception $($_.Exception.Message);
+            Write-ErrorLog -HostName $Computer -EventName "WriteToDisk" -Exception $($_.Exception.Message);
         }
 
     }
     catch {
         # Write out and set our warning trigger
-        Write-ShellMessage -Message "There was a problem gathering information from computer '$HostName'" -Type WARNING -ErrorRecord $_;
+        Write-ShellMessage -Message "There was a problem gathering information from computer '$Computer'" -Type WARNING -ErrorRecord $_;
         $WarningTrigger = $True;
 
         # Write to error log file
-        Write-ErrorLog -HostName $HostName -EventName "Gather" -Exception $($_.Exception.Message);
+        Write-ErrorLog -HostName $Computer -EventName "Gather" -Exception $($_.Exception.Message);
     }
 }
 
