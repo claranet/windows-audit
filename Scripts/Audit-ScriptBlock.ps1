@@ -529,11 +529,11 @@ try {
         # Now, we need to do a check here to see if we're on 2003
         if ($HostInformation.OS.Caption.Contains("2003")) {
             # 2003 requires a different capture method; Get the components from the registry
-            $Components = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Setup\Oc Manager\Subcomponents";
+            $Components = @(Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Setup\Oc Manager\Subcomponents");
             
             # Let's check and see if we're x64 and add to the internal collection
             if (Test-Path "C:\Program Files (x86)") {
-                $Components += Get-ItemProperty "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Setup\Oc Manager\Subcomponents";
+                $Components += @(Get-ItemProperty "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Setup\Oc Manager\Subcomponents");
             }
 
             # Get the roles and features data
@@ -542,11 +542,11 @@ try {
                     if ($_.Name -notlike "PS*") {
                         [PSCustomObject]@{
                             "DisplayName" = "Server 2003 feature: $($_.Name)";
-                            "Name"         = $_.Name;
+                            "Name"        = $_.Name;
                             "FeatureType" = "2003 Feature";
-                            "Path"         = $Components.PSPath;
-                            "Subfeatures"  = "N/A"
-                            "Installed"    = [Bool]($Components.$($_.Name));
+                            "Path"        = $Components.PSPath;
+                            "Subfeatures" = "N/A"
+                            "Installed"   = [Bool]($Components.$($_.Name));
                         };
                     };
                 };
@@ -581,7 +581,6 @@ try {
                         $DisplayName = $Line.Split("[")[0].Trim();
                         $Name = $Line.Split("[")[1].Trim().TrimEnd("]");
                         
-                        
                         # Throw the object out
                         [PSCustomObject]@{
                             "DisplayName" = $DisplayName;
@@ -594,7 +593,6 @@ try {
                     }
                 }
             );
-
         }
         else {
             # Import the servermanager module for the Get-WindowsFeature cmdlet
@@ -887,6 +885,9 @@ catch {
 try {
     Write-ShellMessage -Message "Gathering scheduled tasks information" -Type INFO;
     
+    # Start the scheduled tasks service prior to checking
+    Get-Service "Schedule" | Start-Service;
+
     # Now we need to check what OS we're on here, 2003 doesn't support our custom method
     if ($HostInformation.OS.Caption.Contains("2003")) {
         # Ok we have to parse schtasks.exe
@@ -957,37 +958,49 @@ try {
             }
             
             # Get the list of databases for this instance
-            $Databases = Invoke-SQLQuery -Server $InstanceConnectionIdentifier -Database Master -Query "select name from sys.databases";
+            try {
+                $Databases = Invoke-SQLQuery -Server $InstanceConnectionIdentifier -Database Master -Query "select name from sys.databases";
         
-            # Enumerate the database list and get the sp_helpdb info
-            $DBInfoCollection = @();
-            $Databases | %{
+                # Enumerate the database list and get the sp_helpdb info
+                $DBInfoCollection = @();
+                $Databases | %{
+                
+                    # Get the SP_HELPDB object
+                    $DatabaseName = $_.Name;
+                    $DB = Invoke-SQLQuery -ServerName $InstanceConnectionIdentifier -Database Master -query "EXEC SP_HELPDB '$DatabaseName'";
             
-                # Get the SP_HELPDB object
-                $DatabaseName = $_.Name;
-                $DB = Invoke-SQLQuery -ServerName $InstanceConnectionIdentifier -Database Master -query "EXEC SP_HELPDB '$DatabaseName'";
-        
-                # Parse and add to the DBInfoCollection
-                $DBInfoCollection += $(New-Object PSCustomObject -Property @{
-                    Name               = $DB.name.ToString().Trim();
-                    Size               = $DB.db_size.ToString().Trim();
-                    Owner              = $DB.owner.ToString().Trim();
-                    DBID               = $DB.dbid;
-                    CreatedDate        = [Datetime]$DB.created;
-                    Status             = $DB.status.ToString().Trim();
-                    CompatibilityLevel = $DB.compatibility_level;
+                    # Parse and add to the DBInfoCollection
+                    $DBInfoCollection += $(New-Object PSCustomObject -Property @{
+                        Name               = $DB.name;
+                        Size               = $DB.db_size;
+                        Owner              = $DB.owner;
+                        DBID               = $DB.dbid;
+                        CreatedDate        = $(if ($DB.created) {[Datetime]$DB.created});
+                        Status             = $DB.status;
+                        CompatibilityLevel = $DB.compatibility_level;
+                    });
+                }
+                
+                # Add to the SQLServerInformation object
+                $SQLServerInformation += $(New-Object PSCustomObject -Property @{
+                    ServerName           = $env:computername;
+                    InstanceName         = $InstanceName;
+                    ConnectionIdentifier = $InstanceConnectionIdentifier;
+                    Databases            = $DBInfoCollection;    
                 });
-            
             }
-            
-            # Add to the SQLServerInformation object
-            $SQLServerInformation += $(New-Object PSCustomObject -Property @{
-                ServerName           = $env:computername;
-                InstanceName         = $InstanceName;
-                ConnectionIdentifier = $InstanceConnectionIdentifier;
-                Databases            = $DBInfoCollection;    
-            });
-        
+            catch {
+                # Get the pipe object
+                $E = $_;
+
+                # Check for a login failed message here
+                if ($E.Exception.Message.Contains("login failed")) {
+                    Write-ShellMessage -Message "The current credentials supplied do not have login permissions to '$InstanceConnectionIdentifier'" -Type ERROR -ErrorRecord $E;
+                }
+                else {
+                    Write-ShellMessage -Message "There was an error connecting to the SQL instance '$InstanceConnectionIdentifier'" -Type ERROR -ErrorRecord $E;
+                }
+            }
         }
 
         # Add a collection containing our SQL server information to the hostinfo object
@@ -1055,8 +1068,13 @@ try {
         $Properties = $Connection.Split(" ") | ?{$_};
     
         # Get the process object from the PID
-        $ProcessObject = Get-Process -ID $Properties[4];
-    
+        try {
+            $ProcessObject = Get-Process -ID $Properties[4];
+        }
+        catch {
+            # Meh, processes aren't always linked here anyway.
+        }
+        
         # Create a new PSCustomObject using the properties we just split out, add to the collection
         $ConnectionInformation += $(New-Object PSCustomObject -Property @{
             Protocol           = $Properties[0];
