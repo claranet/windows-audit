@@ -671,7 +671,7 @@ try {
             # Get the Virtual Directories
             $VirtualDirectories = $(Get-WebVirtualDirectory | %{
                 $(New-Object PSObject -Property @{
-                    Name         = $_.Path.Split("/")[($_.Path.Split("/").Length)-1];
+                    Name         = $(if($_.Path){$_.Path.Split("/")[($_.Path.Split("/").Length)-1]});
                     Path         = $_.Path;
                     PhysicalPath = $_.PhysicalPath;
                 });
