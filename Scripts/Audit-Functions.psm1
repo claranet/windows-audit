@@ -75,7 +75,7 @@ Function Is-Ipv4Address {
     }
 }
 
-# Returns a bool indicating whether the supplied string is an IPv4 address
+# Returns a bool indicating whether the supplied string is an IPv6 address
 Function Is-Ipv6Address {
     [Cmdletbinding()]
     Param(
@@ -206,6 +206,14 @@ Function Invoke-PSExecCommand {
         $Username = $PSCredential.UserName;
         $Password = $PSCredential.GetNetworkCredential().Password;
 
+        # Check for the inescapable characters
+        if ($Password.Contains("""")) {
+            throw 'Your password contains a double quote character (") which is incompatible with the escaping of PSExec, please change your password';
+        }
+        elseif ($Password.Contains("'")) {
+            throw "Your password contains a single quote character (') which is incompatible with the escaping of PSExec, please change your password";
+        }
+
         # Get the contents of the script
         $Content = Get-Content $ScriptFile;
 
@@ -231,11 +239,11 @@ Function Invoke-PSExecCommand {
 
             # Build the command
             $Local = "echo $Chunk >> $Filename";
-            $Cmd = 'psexec -accepteula -nobanner \\'+$ComputerName+' -u '+$Username+' -p '+$Password+' cmd /c "'+$Local+'"';
+            $Cmd = 'cmd /c psexec -accepteula -nobanner \\{0} -u {1} -p """{2}""" cmd /c "{3}" --% 2>&1' -f $ComputerName,$Username,$Password,$Local;
 
             # Transmit the chunk
-            $Row = Invoke-Expression $("cmd /c $Cmd --% 2>&1") | ?{$_ -like "*error*"};
-            if (!($Row -like "*error code 0*")) {
+            $Row = Invoke-Expression $Cmd | ?{$_ -like "*error*"};
+            if ($Row -notlike "*error code 0*") {
                 throw $Row;
             }
 
@@ -254,9 +262,9 @@ Function Invoke-PSExecCommand {
         Write-Progress -Activity "Transferring '$ScriptFile' over PSExec" -Status "Processing final chunk";
         $Chunk = $Encoded.Substring($ChunkPointer);
         $Local = "echo $Chunk >> $Filename";
-        $Cmd = 'psexec -accepteula -nobanner \\'+$ComputerName+' -u '+$Username+' -p '+$Password+' cmd /c "'+$Local+'"';
-        $Row = Invoke-Expression $("cmd /c $Cmd --% 2>&1") | ?{$_ -like "*error*"};
-        if (!($Row -like "*error code 0*")) {
+        $Cmd = 'cmd /c psexec -accepteula -nobanner \\{0} -u {1} -p """{2}""" cmd /c "{3}" --% 2>&1' -f $ComputerName,$Username,$Password,$Local;
+        $Row = Invoke-Expression $Cmd | ?{$_ -like "*error*"};
+        if ($Row -notlike "*error code 0*") {
             throw $Row;
         }
         Write-Progress -Activity "Transferring '$ScriptFile' over PSExec" -Completed;
@@ -264,22 +272,25 @@ Function Invoke-PSExecCommand {
         # Now we want to re-assemble the file
         Write-ShellMessage -Message "Assembling script file" -Type DEBUG;
         $Assemble = '$C=Get-Content {0}|Out-String;$B=[Convert]::FromBase64String($C);$S=[System.Text.Encoding]::Unicode.GetString($B);Set-Content Audit-ScriptBlock.ps1 -value $S' -f $FileName;
-        $PSExec = "psexec -accepteula -nobanner \\$ComputerName -u $Username -p $Password PowerShell -ExecutionPolicy Unrestricted -Command '$Assemble'";
+        $PSExec = "psexec -accepteula -nobanner \\$ComputerName -u $Username -p """"""$Password"""""" PowerShell -ExecutionPolicy Unrestricted -Command '$Assemble'";
         $Row = Invoke-Expression $("cmd /c $PSExec --% 2>&1") | ?{$_ -like "*error*"};
-            if (!($Row -like "*error code 0*")) {
-        throw $Row;
+        if ($Row -notlike "*error code 0*") {
+            throw $Row;
         }
 
-        # Now we want to invoke the script
+        # Invoke the script
         Write-ShellMessage -Message "Executing script file" -Type DEBUG;
-        $Execute = "psexec -accepteula -nobanner \\$ComputerName -u $Username -p $Password PowerShell -ExecutionPolicy Unrestricted -File Audit-ScriptBlock.ps1 -x";
-        $Result = Invoke-Expression $("cmd /c $Execute --% 2>&1")
+        $Cmd = 'cmd /c psexec -accepteula -nobanner \\{0} -u {1} -p """{2}""" PowerShell -ExecutionPolicy Unrestricted -File Audit-ScriptBlock.ps1 -X --% 2>&1' -f $ComputerName,$Username,$Password;
+        $Result = Invoke-Expression $Cmd;
+        if ($Row -notlike "*error code 0*") {
+            throw $Row;
+        }
 
         # Now delete the trash
         Write-ShellMessage -Message "Cleaning up" -Type DEBUG;
-        $PSExec = 'psexec -accepteula -nobanner \\'+$ComputerName+' -u '+$Username+' -p '+$Password+' cmd /c "del /f Audit-ScriptBlock.ps1,{0}"' -F $FileName;
-        $Row = Invoke-Expression $("cmd /c $PSExec --% 2>&1") | ?{$_ -like "*error*"};
-        if (!($Row -like "*error code 0*")) {
+        $Cmd = 'cmd /c psexec -accepteula -nobanner \\{0} -u {1} -p """{2}""" cmd /c "del /f Audit-ScriptBlock.ps1,{3}" --% 2>&1' -f $ComputerName,$Username,$Password,$FileName;
+        $Row = Invoke-Expression $Cmd | ?{$_ -like "*error*"};
+        if ($Row -notlike "*error code 0*") {
             throw $Row;
         }
 
@@ -319,7 +330,7 @@ Function Invoke-PSExecCommand {
 
     }
     catch {
-        Write-ShellMessage -Message "Error running script '$ScriptFile' on server '$ComputerName'" -Type ERROR -ErrorRecord $Error[0];
+        Write-ShellMessage -Message "Error running script '$ScriptFile' on server '$ComputerName': $($_ -join " ")" -Type ERROR;
     }
 }
 
@@ -372,7 +383,7 @@ Function Write-ErrorLog {
         [Parameter(Mandatory=$True)]
         [ValidateNotNullOrEmpty()]
         [String]$EventName,
-        [Parameter(Mandatory=$True)]
+        [Parameter(Mandatory=$False)]
         [ValidateNotNullOrEmpty()]
         [String]$Exception
     )
@@ -410,11 +421,21 @@ Function Test-RemoteConnection {
         return "WinRM";
     }
 
-    # PSExec, fallback connection test
+    # Get the standard creds for PSExec in scope
     $Username = $PSCredential.UserName;
     $Password = $PSCredential.GetNetworkCredential().Password;
-    $Cmd = 'cmd /c psexec \\'+$ComputerName+' -u '+$Username+' -p '+$Password+' /accepteula cmd /c echo connectionsuccessfulmsg';
-    $PSExecResult = Invoke-Expression $("$Cmd --% 2>&1");
+
+    # Check for the inescapable characters
+    if ($Password.Contains("""")) {
+        throw 'Your password contains a double quote character (") which is incompatible with the escaping of PSExec, please change your password';
+    }
+    elseif ($Password.Contains("'")) {
+        throw "Your password contains a single quote character (') which is incompatible with the escaping of PSExec, please change your password";
+    }
+
+    # PSExec, fallback connection test
+    $Cmd = 'cmd /c psexec \\{0} -u {1} -p """{2}""" /accepteula cmd /c echo connectionsuccessfulmsg --% 2>&1' -f $ComputerName,$Username,$Password;
+    $PSExecResult = Invoke-Expression $Cmd;
 
     if (($PSExecResult -Join " ").Contains("connectionsuccessfulmsg")) {
         return "PSExec";
