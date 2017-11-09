@@ -206,6 +206,12 @@ Function Invoke-PSExecCommand {
         $Username = $PSCredential.UserName;
         $Password = $PSCredential.GetNetworkCredential().Password;
 
+        # Clean the creds up for special chars that will break PSExec
+        "!","@","#","$","%","^","&","*" | %{
+            $Char = $_;
+            $Password = $Password.Replace($Char,"^$Char");
+        }
+
         # Get the contents of the script
         $Content = Get-Content $ScriptFile;
 
@@ -410,9 +416,17 @@ Function Test-RemoteConnection {
         return "WinRM";
     }
 
-    # PSExec, fallback connection test
+    # Get the standard creds for PSExec in scope
     $Username = $PSCredential.UserName;
     $Password = $PSCredential.GetNetworkCredential().Password;
+
+    # Clean the creds up for special chars that will break PSExec
+    "!","@","#","$","%","^","&","*" | %{
+        $Char = $_;
+        $Password = $Password.Replace($Char,"^$Char");
+    }
+
+    # PSExec, fallback connection test
     $Cmd = 'cmd /c psexec \\'+$ComputerName+' -u '+$Username+' -p '+$Password+' /accepteula cmd /c echo connectionsuccessfulmsg';
     $PSExecResult = Invoke-Expression $("$Cmd --% 2>&1");
 
