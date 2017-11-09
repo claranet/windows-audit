@@ -75,7 +75,7 @@ Function Is-Ipv4Address {
     }
 }
 
-# Returns a bool indicating whether the supplied string is an IPv4 address
+# Returns a bool indicating whether the supplied string is an IPv6 address
 Function Is-Ipv6Address {
     [Cmdletbinding()]
     Param(
