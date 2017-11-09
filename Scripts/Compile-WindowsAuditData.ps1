@@ -11,19 +11,14 @@
     chosen is present and call the filter multiple times providing each file from
     the RawData directory.
 
-    .PARAMETER Filter [String]
-    The name of the filter you wish to apply to the dataset. Must exist in the 
-    .\Filters directory with a .ps1 file extension.
-
     .EXAMPLE
-    .\Parse-WindowsAuditData.ps1 -Filter Example
-    This will parse the entire contents of the RawData directory, generating
-    the output CSV files for compliation using the 'Example' filter.
+    This script is not designed for standalone usage, please see the Invoke-WindowsAudit.ps1
+    file in the root of this solution.
 #>
 
 [CmdletBinding()]
 Param(
-    # Path to a PSV file containing the list of computers|protocols to connect to
+    # Name of the filter to use for parsing the results
     [Parameter(Mandatory=$True)]
     [ValidateNotNullOrEmpty()]
     [String]$Filter

@@ -8,72 +8,25 @@
     This script will gather a variety of information from a Windows Server instance,
     returning it in a format that can be manipulated to produce an output report
     indicating the machine's current Application/Hardware/Configuration status.
-
-    .PARAMETER InputFile [String]
-    The path to a Pipe Separated Values file which will be parsed for target information
-    on what instances to harvest audit data from.
-    Per-line format: (hostname|ip):(port)|(protocol) 
-
-    .PARAMETER Computers [String[]]
-    String array of computers to run this script on. Defaults to this computer
-    if not specified. If the computer value is a [host:port] or [ip:port] combination
-    the specified port will be used for WinRM.
-
-    .PARAMETER Protocol [String: WinRM,PSExec]
-    The protocol to use for the target computers specified in the $Computers parameter.
-    Defaults to WinRM if not specified.
-
-    .PARAMETER PSCredential [PSCredential]
-    PSCredential that will be used for WinRM communications. Must be valid on the machines 
-    you're trying to connect to.
-
-    .PARAMETER SerialisationDepth [Int: 2..8]
-    Override value for the serialisation depth to use when this script is using the 
-    System.Management.Automation.PSSerializer class. Defaults to 5, and range is limited
-    to 2..8 as anything less than 2 is useless, anything greater than 8 will generate a very
-    large (multi-gb) file and probably crash the targeted machine. Tweak if the data you want
-    is nested so low it's not being included in the output.
     
     .EXAMPLE
-    .\Invoke-WindowsAudit.ps1 -InputFile "C:\path\to\myfile.psv"
-    This will execute the script on the list of machines found in the supplied file using the
-    current identity.
-
-    .\Invoke-WindowsAudit.ps1 -InputFile "C:\path\to\myfile.psv" -PSCredential $MyPSCredential
-    This will execute the script on the list of machines found in the supplied file using the
-    supplied PSCredential. Please note the PSCredential will only be used if the protocol in use
-    is WinRM.
-
-    .\Invoke-WindowsAudit.ps1 -Computers "dev-test-01","dev-test-02" -PSCredential $MyPSCredential
-    This will execute the script on both of the named computers, using the specified
-    PSCredential from the $MyPSCredential variable.
-
-    .\Invoke-WindowsAudit.ps1 -Computers "dev-test-01","192.168.0.10:55876","dev-test-06:443"
-    This will execute the script on all three of the named computers, using the
-    specified ports for WinRM on latter two and the current user's identity.
+    This script is not designed for standalone usage, please see the Invoke-WindowsAudit.ps1
+    file in the root of this solution.
 #>
 
 [CmdletBinding()]
 Param(
-    # Path to a PSV file containing the list of computers|protocols to connect to
+    # Path to a file containing the computer list to execute this script on
     [Parameter(Mandatory=$False)]
     [String]$InputFile,
 
-    # String[] of computers to execute this script on
+    # Alternate input source, String[] of computers to execute this script on
     [Parameter(Mandatory=$False)]
     [String[]]$Computers,
 
-    # Protocol to use for connecting to the target machine
-    [Parameter(Mandatory=$False)]
-    [String]$Protocol = "WinRM",
-
-    # PSCredential that will be used for WinRM to connect to the target machines
+    # PSCredential that will be used to connect to the target machines
     [Parameter(Mandatory=$True)]
-    [PSCredential]$PSCredential,
-
-    # Override for the ExportDepth to CLI XML
-    [Parameter(Mandatory=$False)]
-    [Int]$SerialisationDepth = 5
+    [PSCredential]$PSCredential
 )
 
 #---------[ Global Declarations ]---------
@@ -95,7 +48,9 @@ try {
     Import-Module ".\Scripts\Audit-Functions.psm1" -DisableNameChecking;
 }
 catch {
-    Write-ShellMessage -Message "There was a problem importing the functions library" -Type ERROR -ErrorRecord $_;
+    # Can't use Write-ShellMessage here as the module didn't import
+    $Msg = "There was a problem importing the functions library: $($_.Exception.Message)";
+    Write-Host "[$(Get-Date -f "dd/MM/yy HH:mm:ss")] [ERROR]: $Msg"
     Exit(1);
 }
 
@@ -108,54 +63,6 @@ try {
 catch {
     Write-ShellMessage -Message "There was a problem importing the audit script" -Type ERROR -ErrorRecord $_;
     Exit(1);
-}
-
-#---------[ Extended Validation ]---------
-
-# Check if we recieved a PSV file with the computers
-if ($InputFile) {
-    Write-ShellMessage -Message "Parsing supplied input file" -Type INFO;
-
-    # Get an object to hold the data we want
-    $Computers = @();
-
-    # Ok so let's parse the file
-    $I = 0;
-    $(Get-Content $InputFile) | %{ 
-        try {
-        # Get the pipe object
-        $Line = $_;
-            Write-ShellMessage -Message "Parsing line: $Line" -Type DEBUG;
-
-            # Check if the line is pipe separated
-            if ($Line.Contains("|")) {
-                # Get the props we want
-                $HostName = $Line.Split("|")[0];
-                $Protocol = $Line.Split("|")[1];
-            }
-            else {
-                $HostName = $Line;
-                $Protocol = "WinRM";
-            }
-
-            # Write out and add the computer object
-            Write-ShellMessage -Message "Found computer '$HostName' with protocol '$Protocol'" -Type DEBUG;
-            $Computers += "$HostName#$Protocol";
-            $I++;
-        }
-        catch {
-            # Write out and set our warning trigger
-            Write-ShellMessage -Message "There was a problem parsing line '$Line'" -Type WARNING -ErrorRecord $_;
-            $WarningTrigger = $True;
-        }
-    }
-
-    # And set the host count so we can enumerate on this later
-    $HostCount = $I;
-}
-else {
-    Write-ShellMessage -Message "Parsing supplied list of computers" -Type INFO;
-    $HostCount = $Computers.Count;
 }
 
 #---------[ Create the output folder ]---------
@@ -173,79 +80,37 @@ if (!(Test-Path $RawDataFolder)) {
     }
 }
 
-
 #---------[ Main() ]---------
+
+# Let's work out whether we got a file or string[] as input
+if ($InputFile) {
+    # Import the content excluding blank entries
+    $ComputersToProcess = Get-Content $InputFile | ?{$_};
+}
+else {
+    # Use the shell input instead
+    $ComputersToProcess = $Computers;
+}
 
 # Loop to execute on targeted computers
 $C = 0;
-ForEach ($Computer in $Computers) {
+ForEach ($Computer in $ComputersToProcess) {
     try {
         # Increment our counter here and write-progress
         $C++;
         Write-Progress -Activity "Gathering audit data" -Status "Processing computer $C of $HostCount" -PercentComplete $(($C/$HostCount)*100);
 
-        # Ok we need to check whether we have an InputFile
-        if ($InputFile) {
-            # Get what we need from the inputfile vars
-            $Split    = $Computer.Split("#");
-            $Hostname = $Split[0].Split(":")[0];
-            $Port     = $Split[0].Split(":")[1];
-            $Protocol = $Split[1];
-        }
-        else {
-            # Get what we need from the param input instead
-            $Hostname = $Computer.Split(":")[0];
-            $Port     = $Computer.Split(":")[1];
-        }
+        # Now we need to get the protocol to use
+        $Protocol = Test-RemoteConnection -ComputerName $HostName -PSCredential $PSCredential;
 
-        # Next we'll check the protocol and see how we're connecting
-        if ($Protocol -eq "PSExec") {
-            # Ok let's call PSExec
-            Write-ShellMessage -Message "Connecting to '$HostName' using protocol '$Protocol'" -Type INFO;
-            $HostInformation = Invoke-PSExecCommand -ComputerName $Hostname -Script $ScriptBlockPath -PSCredential $PSCredential;
-        }
-        elseif ($Port) {
-            # Ok we're hitting a non standard port over WinRM, check if we're using a PSCredential and hit it
-            if ($PSCredential) {
-                # Execute the command supplying the credential
-                Write-ShellMessage -Message "Connecting to '$HostName' using protocol '$Protocol' on port '$Port' using PSCredential for '$($PSCredential.UserName)'" -Type INFO;
-                $HostInformation = Invoke-Command -ComputerName $Hostname -Port $Port -ScriptBlock $ScriptBlock -Credential $PSCredential;
-            }
-            else {
-                # Execute the command using the default credential
-                try {
-                    Write-ShellMessage -Message "Connecting to '$HostName' using protocol '$Protocol' on port '$Port'" -Type INFO;
-                    $HostInformation = Invoke-Command -ComputerName $Hostname -Port $Port -ScriptBlock $ScriptBlock;
-                }
-                catch {
-                    Write-ShellMessage -Message "Connection to '$HostName' failed" -Type ERROR -ErrorRecord $_;
-
-                    # Fallback to PSExec instead
-                    Write-ShellMessage -Message "Attempting fallback connection: Connecting to '$HostName' using protocol 'PSExec'" -Type INFO;
-                    $HostInformation = Invoke-PSExecCommand -ComputerName $Hostname -Script $ScriptBlockPath -PSCredential $PSCredential;
-                }
-            }
-        }
-        else {
-            # Ok we know that we're using WinRM over standard port, check if using PSCredential and hit it
-            if ($PSCredential) {
-                # Execute the command supplying the credential
-                Write-ShellMessage -Message "Connecting to '$HostName' using protocol '$Protocol' using PSCredential for '$($PSCredential.UserName)'" -Type INFO;
+        # Quick status message and execute the command using the protcol we got earlier
+        Write-ShellMessage -Message "Connecting to '$HostName' using protocol '$Protocol' with PSCredential for '$($PSCredential.UserName)'" -Type INFO;
+        Switch ($Protocol) {
+            "WinRM" {               
                 $HostInformation = Invoke-Command -ComputerName $Hostname -ScriptBlock $ScriptBlock -Credential $PSCredential;
             }
-            else {
-                # Execute the command using the default credential
-                try {
-                    Write-ShellMessage -Message "Connecting to '$HostName' using protocol '$Protocol'" -Type INFO;
-                    $HostInformation = Invoke-Command -ComputerName $Hostname -ScriptBlock $ScriptBlock;
-                }
-                catch {
-                    Write-ShellMessage -Message "Connection to '$HostName' failed" -Type ERROR -ErrorRecord $_;
-
-                    # Fallback to PSExec instead
-                    Write-ShellMessage -Message "Attempting fallback connection: Connecting to '$HostName' using protocol 'PSExec'" -Type INFO;
-                    $HostInformation = Invoke-PSExecCommand -ComputerName $Hostname -Script $ScriptBlockPath -PSCredential $PSCredential;
-                }
+            "PSExec" {
+                $HostInformation = Invoke-PSExecCommand -ComputerName $Hostname -Script $ScriptBlockPath -PSCredential $PSCredential;
             }
         }
 
@@ -285,7 +150,7 @@ Write-Progress -Activity "Gathering audit data" -Completed;
 #---------[ Fin ]---------
 
 if ($WarningTrigger) {
-    $FinalMessage = "Audit data gathering for $HostCount computers has completed with warnings";
+    $FinalMessage = "Audit data gathering for $HostCount computers has completed with issues";
     Write-ShellMessage -Message $FinalMessage -Type WARNING;
 }
 else {

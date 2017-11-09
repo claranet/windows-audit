@@ -1,5 +1,0 @@
-dev-server-01.mydomain.com|WinRM
-dev-server-02:55985|WinRM
-192.168.10.10|PSExec
-dev-server-04|WinRM
-dev-server-05|PSExec
