@@ -5,3 +5,7 @@ vagrantfile
 # Output data
 Output
 Windows-Audit-Data.xlsx
+
+# Logs
+errors.log
+Windows-Audit-Transcript*
