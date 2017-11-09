@@ -683,7 +683,7 @@ try {
                 
                 # Get the site name and physical path
                 $WebsiteName = $_.Name;
-                $PhysicalPath = $_.PhysicalPath.Replace("%SystemDrive%",$Env:SystemDrive).Replace("%SystemRoot%",$env:SystemRoot);
+                $PhysicalPath = $(if($_.PhysicalPath){$_.PhysicalPath.Replace("%SystemDrive%",$Env:SystemDrive).Replace("%SystemRoot%",$env:SystemRoot)});
                 
                 # Enumerate the config files and add to the configfilecontent array
                 Get-ChildItem -Path $PhysicalPath -Recurse | ?{$_.Name -like "*.config"} | %{
