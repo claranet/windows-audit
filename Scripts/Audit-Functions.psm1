@@ -406,14 +406,14 @@ Function Test-RemoteConnection {
     )
 
     # Try WinRM connection as this is preferred
-    if ($(Try{[Void](Test-WSMan -ComputerName $Computer -Credential $PSCredential -Authentication Default);$True}Catch{$False})) {
+    if (Test-WSMan -ComputerName $ComputerName -Credential $PSCredential -Authentication Default -ErrorAction SilentlyContinue) {
         return "WinRM";
     }
 
     # PSExec, fallback connection test
     $Username = $PSCredential.UserName;
     $Password = $PSCredential.GetNetworkCredential().Password;
-    $Cmd = 'cmd /c psexec \\win-test -u '+$Username+' -p '+$Password+' /accepteula cmd /c echo connectionsuccessfulmsg';
+    $Cmd = 'cmd /c psexec \\'+$ComputerName+' -u '+$Username+' -p '+$Password+' /accepteula cmd /c echo connectionsuccessfulmsg';
     $PSExecResult = Invoke-Expression $("$Cmd --% 2>&1");
 
     if (($PSExecResult -Join " ").Contains("connectionsuccessfulmsg")) {

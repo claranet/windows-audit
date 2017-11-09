@@ -40,7 +40,7 @@ $WarningTrigger = $False;
 
 # Import our functions from the lib module
 try {
-    Import-Module ".\Scripts\Audit-Functions.psm1" -DisableNameChecking;
+    Import-Module ".\Scripts\Audit-Functions.psm1" -DisableNameChecking -Force;
 }
 catch {
     Write-ShellMessage -Message "There was a problem importing the functions library" -Type ERROR -ErrorRecord $_;
