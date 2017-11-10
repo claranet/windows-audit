@@ -305,9 +305,15 @@ Function Invoke-PSExecCommand {
             $_ -notlike "PowerShell exited on *"`
         }) -join "`r`n";
 
-        $Output = $Result.Substring(0,$Result.IndexOf("<Objs"));
-        $XML = $Result.Replace($Output,"");
-        
+        # Check here see if we got the XML
+        if ($Result.Contains("<Objs")) {  
+            $Output = $Result.Substring(0,$Result.IndexOf("<Objs"));
+            $XML = $Result.Replace($Output,"");
+        } 
+        else {
+            $Output = $Result;
+        }
+
         # Write the captured output
         $Output.Split("`r`n") | ?{$_} | %{
             # Work out what colour it should be
@@ -322,15 +328,22 @@ Function Invoke-PSExecCommand {
             Write-Host $_ -ForegroundColor $Col;
         }
 
-        # Deserialise the info
-        $HostInformation = [System.Management.Automation.PSSerializer]::Deserialize($XML);
-
-        # And return the host information
-        return $HostInformation;
+        # Check if we got the XML
+        if ($XML) {
+            # Deserialise the info
+            $HostInformation = [System.Management.Automation.PSSerializer]::Deserialize($XML);
+            
+            # And return the host information
+            return $HostInformation;
+        }
+        else {
+            throw "Unable to find return XML in PSExec output.";
+        }
 
     }
     catch {
         Write-ShellMessage -Message "Error running script '$ScriptFile' on server '$ComputerName': $($_ -join " ")" -Type ERROR;
+        Exit(1);
     }
 }
 
