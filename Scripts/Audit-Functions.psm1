@@ -323,6 +323,7 @@ Function Invoke-PSExecCommand {
                 "WARNING\]\:" {$Col = "Yellow"};
                 "SUCCESS\]\:" {$Col = "Green"};
                 "ERROR\]\:"   {$Col = "Red"};
+                default       {$Col = "White"};
             }
             # Write it
             Write-Host $_ -ForegroundColor $Col;
