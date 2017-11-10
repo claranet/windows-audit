@@ -799,8 +799,35 @@ catch {
 try {
     Write-ShellMessage -Message "Gathering TLS certificate information" -Type INFO;
         
-    # Add a collection containing our certificate tree
-    $TLSCertificates = $(Get-ChildItem "Cert:\LocalMachine" -Recurse | ?{!$_.PSIsContainer} | Select -Property *);
+    # Get the certificate tree
+    $TLSCertificates = $(Get-ChildItem "Cert:\LocalMachine" -Recurse | ?{!$_.PSIsContainer} | Select -Property * | %{
+        $(New-Object PSCustomObject -Property @{
+            EnhancedKeyUsageList = $_.EnhancedKeyUsageList;
+            DnsNameList = $_.DnsNameList;
+            SendAsTrustedIssuer = $_.SendAsTrustedIssuer;
+            EnrollmentPolicyEndPoint = $_.EnrollmentPolicyEndPoint;
+            EnrollmentServerEndPoint = $_.EnrollmentServerEndPoint;
+            PolicyId = $_.PolicyId;
+            Archived = $_.Archived;
+            Extensions = $_.Extensions;
+            FriendlyName = $_.FriendlyName;
+            IssuerName = $_.IssuerName;
+            NotAfter = $_.NotAfter;
+            NotBefore = $_.NotBefore;
+            HasPrivateKey = $_.HasPrivateKey;
+            PublicKey = $_.PublicKey;
+            SerialNumber = $_.SerialNumber;
+            SubjectName = $_.SubjectName;
+            SignatureAlgorithm = $_.SignatureAlgorithm;
+            Thumbprint = $_.Thumbprint;
+            Version = $_.Version;
+            Handle = $_.Handle;
+            Issuer = $_.Issuer;
+            Subject = $_.Subject;
+        });
+    });
+    
+    # Add to the host information collection
     Add-HostInformation -Name TLSCertificates -Value $TLSCertificates;
 }
 catch {
