@@ -206,12 +206,11 @@ Function Invoke-PSExecCommand {
         $Username = $PSCredential.UserName;
         $Password = $PSCredential.GetNetworkCredential().Password;
 
-        # Check for the inescapable characters
-        if ($Password.Contains("""")) {
-            throw 'Your password contains a double quote character (") which is incompatible with the escaping of PSExec, please change your password';
-        }
-        elseif ($Password.Contains("'")) {
-            throw "Your password contains a single quote character (') which is incompatible with the escaping of PSExec, please change your password";
+        # Check for inescapable characters
+        """","'","&","^" | %{
+            if ($Password.Contains($_)) {
+                throw 'Your password contains the "'+$_+'" character which is incompatible with the escaping of PSExec, please change your password or use a different credential';
+            }
         }
 
         # Get the contents of the script
@@ -439,12 +438,11 @@ Function Test-RemoteConnection {
     $Username = $PSCredential.UserName;
     $Password = $PSCredential.GetNetworkCredential().Password;
 
-    # Check for the inescapable characters
-    if ($Password.Contains("""")) {
-        throw 'Your password contains a double quote character (") which is incompatible with the escaping of PSExec, please change your password';
-    }
-    elseif ($Password.Contains("'")) {
-        throw "Your password contains a single quote character (') which is incompatible with the escaping of PSExec, please change your password";
+    # Check for inescapable characters
+    """","'","&","^" | %{
+        if ($Password.Contains($_)) {
+            throw 'Your password contains the "'+$_+'" character which is incompatible with the escaping of PSExec, please change your password or use a different credential';
+        }
     }
 
     # PSExec, fallback connection test
@@ -452,7 +450,17 @@ Function Test-RemoteConnection {
     $PSExecResult = Invoke-Expression $Cmd;
 
     if (($PSExecResult -Join " ").Contains("connectionsuccessfulmsg")) {
-        return "PSExec";
+        # Let's check to see if powershell works
+        $Cmd = 'cmd /c psexec \\{0} -u {1} -p """{2}""" /accepteula powershell -ExecutionPolicy unrestricted -Command "return ""pshellsuccess""" --% 2>&1' -f $ComputerName,$Username,$Password;
+        $PSResult = Invoke-Expression $Cmd;
+
+        if (($PSResult -Join " ").Contains("pshellsuccess")) {
+            return "PSExec";
+        }
+        else {
+            throw "The machine '$ComputerName' has an issue starting powershell, please correct this before trying to audit this machine. Stack: $($PSResult -join " ")"
+            return;
+        }
     }
 
     # No remote connectivity
