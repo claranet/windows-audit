@@ -109,7 +109,8 @@ Param(
 
 # Start transcript
 $DateStamp = Get-Date -Format "ddMMyy_HHmmss";
-[Void](Start-Transcript ".\Windows-Audit-Transcript-$env:username-$DateStamp.log");
+$Transcriptfile = ".\Windows-Audit-Transcript-$env:username-$DateStamp.log";
+[Void](Start-Transcript $Transcriptfile);
 
 # Run the gather phase if required
 if (!($CompileOnly.IsPresent)) {
@@ -126,6 +127,11 @@ if ($Compile.IsPresent -or $CompileOnly.IsPresent) {
 
 # Stop transcript
 [Void](Stop-Transcript);
+
+# Cleanup transcript
+$TranscriptContent = Get-Content $TranscriptFile | Out-String;
+$TranscriptContent = $TranscriptContent.Replace($($PSCredential.GetNetworkCredential().Password),"*****");
+Set-Content -Path $Transcriptfile -Value $TranscriptContent;
 
 # Fin
 Exit;

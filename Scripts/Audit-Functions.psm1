@@ -398,7 +398,10 @@ Function Write-ErrorLog {
         [String]$EventName,
         [Parameter(Mandatory=$False)]
         [ValidateNotNullOrEmpty()]
-        [String]$Exception
+        [String]$Exception,
+        [Parameter(Mandatory=$False)]
+        [ValidateNotNullOrEmpty()]
+        [String]$Sanitise
     )
 
     # Get a datestamp sorted
@@ -406,6 +409,11 @@ Function Write-ErrorLog {
 
     # Build our message output
     $Output = [String]::Format("[{0}] [{1}] [{2}]: {3}",$DateStamp,$HostName,$EventName,$Exception);
+
+    # Quick cleanup
+    $Sanitise | %{
+        $Output = $Output.Replace($_,"******");
+    }
     
     # Check if our errors file exists and create if needed
     $ErrorsFile = ".\errors.log";
