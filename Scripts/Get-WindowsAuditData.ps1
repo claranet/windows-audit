@@ -131,7 +131,7 @@ ForEach ($Computer in $ComputersToProcess) {
             $WarningTrigger = $True;
     
             # Write to error log file
-            Write-ErrorLog -HostName $Computer -EventName "WriteToDisk" -Exception $($_.Exception.Message);
+            Write-ErrorLog -HostName $Computer -EventName "WriteToDisk" -Exception $($_.Exception.Message) -Sanitise $PSCredential.GetNetworkCredential().Password;
         }
 
     }
@@ -141,7 +141,7 @@ ForEach ($Computer in $ComputersToProcess) {
         $WarningTrigger = $True;
 
         # Write to error log file
-        Write-ErrorLog -HostName $Computer -EventName "Gather" -Exception $($_.Exception.Message);
+        Write-ErrorLog -HostName $Computer -EventName "Gather" -Exception $($_.Exception.Message) -Sanitise $PSCredential.GetNetworkCredential().Password;
     }
 }
 
