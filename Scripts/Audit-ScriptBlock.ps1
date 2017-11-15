@@ -749,19 +749,24 @@ try {
         # Get a list .config files for each application so we can work out dependency chains
         $ConfigFileContent = @();
         $WebSites | %{
-            
-            # Get the site name and physical path
-            $WebsiteName = $_.Name;
-            $PhysicalPath = $(if($_.PhysicalPath){$_.PhysicalPath.Replace("%SystemDrive%",$Env:SystemDrive).Replace("%SystemRoot%",$env:SystemRoot)});
-            
-            # Enumerate the config files and add to the configfilecontent array
-            Get-ChildItem -Path $PhysicalPath -Recurse | ?{$_.Name -like "*.config"} | %{
-                $ConfigFileContent += $(New-Object PSCustomObject -Property @{
-                    Site    = $WebsiteName;
-                    Path    = $_.FullName;
-                    Content = $(Get-Content $_.FullName | Out-String);
-                }); 
-            };
+            $Site = $_;
+            # Quick existence check on $_.PhysicalPath
+            if ($Site.PhysicalPath) {
+                if (Test-Path $Site.PhysicalPath) {
+                    # Get the site name and physical path
+                    $WebsiteName = $Site.Name;
+                    $PhysicalPath = $Site.PhysicalPath.Replace("%SystemDrive%",$Env:SystemDrive).Replace("%SystemRoot%",$env:SystemRoot);
+                    
+                    # Enumerate the config files and add to the configfilecontent array
+                    Get-ChildItem -Path $PhysicalPath -Recurse | ?{$_.Name -like "*.config"} | %{
+                        $ConfigFileContent += $(New-Object PSCustomObject -Property @{
+                            Site    = $WebsiteName;
+                            Path    = $_.FullName;
+                            Content = $(Get-Content $_.FullName | Out-String);
+                        }); 
+                    };
+                }
+            }
         };
 
         # And add the IIS data to our HostInformation collection
