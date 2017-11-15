@@ -281,6 +281,51 @@ Function Invoke-SQLQuery {
     return $Datatable;
 }
 
+# Gets applications list from registry using the .NET method
+# Get-ItemProperty fails when certain characters are in the key names
+Function Get-RegistryApplications {
+    [Cmdletbinding()]
+    Param(
+        [Parameter(Mandatory=$True)]
+        [ValidateSet("Registry32","Registry64")]
+        [String]$RegistryView
+    )
+
+    # Let's work out whether we're 32 or 64
+    if ($RegistryView -eq "Registry32") {
+        $Path = "Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall";
+    }
+    else {
+        $Path = "Software\Microsoft\Windows\CurrentVersion\Uninstall";
+    }
+
+    # Set up the Reg Key object and open the subkey
+    $Reg = [Microsoft.Win32.RegistryKey]::OpenBaseKey("LocalMachine",$RegistryView);
+    $Key = $Reg.OpenSubKey($Path);
+
+    # Enumerate the keys and get the applications
+    $Applications = $Key.GetSubKeyNames() | %{
+        # Get the pipe object
+        $DisplayName = $_;
+
+        # Get the properties list for this object
+        $DisplayVersion = $Key.OpenSubKey($DisplayName).GetValue("DisplayVersion");
+        $Publisher      = $Key.OpenSubKey($DisplayName).GetValue("Publisher");
+        $InstallDate    = $Key.OpenSubKey($DisplayName).GetValue("InstallDate");
+        
+        # Return to variable
+        $(New-Object PSCustomObject -Property @{
+            DisplayName = $DisplayName;
+            DisplayVersion = $DisplayVersion;
+            Publisher = $Publisher;
+            InstallDate = $InstallDate;
+        });
+     }
+
+    # And return
+    return $Applications;
+}
+
 
 #---------[ OS ]---------
 try {
@@ -620,61 +665,95 @@ try {
         # Get the job defined in a scriptblock
         $GetIISConfigurationJobScriptBlock = {
 
-            # Set the Execution policy
-            Set-ExecutionPolicy Unrestricted -Force;
-
-            # Get the WebAdministration module imported
-            Import-Module WebAdministration -Force;
-
-            # Slight wait to fix any import latency issues
-            Try{
-                [Void](Get-WebSite);
-            } Catch [System.IO.FileNotFoundException]{}
-
-            # Now, we need to explicitly cast the outputs of the following
-            # to PSCustomObjects as the IISConfigurationElement and other
-            # types don't serialise properly.
+            # Path for Appcmd
+            $AppCmd = "C:\windows\system32\inetsrv\appcmd.exe";
 
             # Get the WebSites
-            $WebSites = $(Get-WebSite | %{
+            [Xml]$Xml = & $AppCmd "list" "site" "/xml";
+            $Sites = $Xml.DocumentElement.Site | %{$_."SITE.NAME"};
+
+            # Enumerate and check each site to get the data
+            $WebSites = $($Sites | %{
+
+                # Get the site name
+                $SiteName = $_;
+                
+                # Get the XML
+                [Xml]$C = & "C:\windows\System32\Inetsrv\appcmd.exe" "list" "site" "$SiteName" "/xml";
+                $PhysicalPath = & "C:\windows\System32\Inetsrv\appcmd.exe" "list" "app" "$SiteName/" "/text:[path='/'].physicalPath";
+                
+                # New PSCustomObject
                 $(New-Object PSCustomObject -Property @{
-                    Name         = $_.Name;
-                    ID           = $_.ID;
-                    State        = $_.State;
-                    PhysicalPath = $_.PhysicalPath;
-                    Bindings     = @(,$(($_.Bindings | %{$_.Collection}) -join " "));
+                    Name         = $SiteName;
+                    ID           = $C.DocumentElement.SITE."SITE.ID";
+                    State        = $C.DocumentElement.SITE.state;
+                    PhysicalPath = $PhysicalPath;
+                    Bindings     = $($C.DocumentElement.SITE.bindings -Split ",");
                 });
             });
 
             # Get the Application Pools
-            $ApplicationPools = $(gci "IIS:\AppPools" | Select -Property * | %{
-                $Name = $_.Name;
+            [Xml]$Xml = & $AppCmd "list" "apppool" "/xml";
+            $AppPools = $Xml.DocumentElement.AppPool | %{$_."APPPOOL.NAME"};
+
+            # Enumerate and check each site to get the data
+            $ApplicationPools = $($AppPools | %{
+
+                # Get the site name
+                $AppPoolName = $_;
+                
+                # Get the data
+                [Xml]$C = & $AppCmd "list" "apppool" "$AppPoolName" "/xml";
+                [String[]]$T = & $AppCmd "list" "apppool" "$AppPoolName" "/text:*";
+                
+                # Get the list of websites for this Application Pool
+                [Xml]$W = & $AppCmd "list" "app" "/xml";
+                $WebSitesForAppPool = ($W.DocumentElement.App | ?{$_."APPPOOL.NAME" -eq "DefaultAppPool"} | Select SITE.NAME)."SITE.NAME" -Join ", ";
+                
+                # New PSCustomObject
                 $(New-Object PSCustomObject -Property @{
-                    Name                  = $Name;
-                    State                 = $_.State;
-                    ManagedPipelineMode   = $_.ManagedPipelineMode;
-                    ManagedRuntimeVersion = $_.ManagedRuntimeVersion;
-                    StartMode             = $_.StartMode;
-                    AutoStart             = $_.AutoStart;
-                    Applications          = @(,$((Get-WebSite | ?{$_.applicationPool -eq $Name} | Select Name).Name));
-                });
+                    Name                  = $AppPoolName;
+                    State                 = $C.DocumentElement.AppPool.state;
+                    ManagedPipelineMode   = $C.DocumentElement.AppPool.PipelineMode;
+                    ManagedRuntimeVersion = $C.DocumentElement.AppPool.RuntimeVersion;
+                    StartMode             = ((($T | ?{$_ -like "*startMode*"}) -Split ":")[1]) -Replace """","";
+                    AutoStart             = $([Bool](((($T | ?{$_ -like "*autoStart*"}) -Split ":")[1]) -Replace """",""));
+                    Applications          = $WebSitesForAppPool;
+                });             
             });
 
             # Get the Bindings
-            $WebBindings = $(Get-WebBinding | %{
+            $WebBindings = $($Websites | Select -ExpandProperty Bindings | %{
+                # Get the binding split
+                $BS = $_.Split("/");
+                # Return the data
                 $(New-Object PSCustomObject -Property @{
-                    Protocol           = $_.protocol;
-                    BindingInformation = $_.bindingInformation;
+                    Protocol = $BS[0];
+                    Binding  = $BS[1];
                 });
             });
 
             # Get the Virtual Directories
-            $VirtualDirectories = $(Get-WebVirtualDirectory | %{
-                $(New-Object PSObject -Property @{
-                    Name         = $(if($_.Path){$_.Path.Split("/")[($_.Path.Split("/").Length)-1]});
-                    Path         = $_.Path;
-                    PhysicalPath = $_.PhysicalPath;
-                });
+            [Xml]$Xml = & $AppCmd "list" "vdirs" "/xml";
+            $VDirs = $Xml.DocumentElement.VDIR | %{$_."VDIR.NAME"};
+
+            # Enumerate and check each site to get the data
+            $VirtualDirectories = $($VDirs | %{
+
+                # Get the site name
+                $VDirName = $_;
+                
+                # Get the data
+                [Xml]$C = & $AppCmd "list" "vdirs" "$VDirName" "/xml";
+                
+                # New PSCustomObject if proper vdir, appcmd reports apps as vdirs too
+                if ($C.DocumentElement.VDIR.path -ne "/") {
+                    $(New-Object PSCustomObject -Property @{
+                        Name         = $C.DocumentElement.VDIR."VDIR.NAME";
+                        Path         = $($C.DocumentElement.VDIR.path -replace "/","");
+                        PhysicalPath = $C.DocumentElement.VDIR.physicalPath;
+                    });
+                }       
             });
 
             # Get a list .config files for each application so we can work out dependency chains
