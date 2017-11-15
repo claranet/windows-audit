@@ -657,162 +657,121 @@ catch {
 try {
     if (($HostInformation.RolesAndFeatures | ?{$_.Name -eq "Web-Server"}).Installed) {
         Write-ShellMessage -Message "Gathering IIS information" -Type INFO;
+       
+        # Get the WebSites
+        [Xml]$Xml = & "C:\windows\system32\inetsrv\appcmd.exe" "list" "site" "/xml";
+        $Sites = $Xml.DocumentElement.Site | %{$_."SITE.NAME"};
 
-        # This is wrapped in a powershell job; sometimes due to bad server configuration
-        # powershell modules just hang when trying to load. Processing this way allows 
-        # the use of a timeout to prevent the whole process getting hung up.
+        # Enumerate and check each site to get the data
+        $WebSites = $($Sites | %{
 
-        # Get the job defined in a scriptblock
-        $GetIISConfigurationJobScriptBlock = {
+            # Get the site name
+            $SiteName = $_;
+            
+            # Get the XML
+            [Xml]$C = & "C:\windows\System32\Inetsrv\appcmd.exe" "list" "site" "$SiteName" "/xml";
+            $PhysicalPath = & "C:\windows\System32\Inetsrv\appcmd.exe" "list" "app" "$SiteName/" "/text:[path='/'].physicalPath";
+            
+            # New PSCustomObject
+            $(New-Object PSCustomObject -Property @{
+                Name         = $SiteName;
+                ID           = $C.DocumentElement.SITE."SITE.ID";
+                State        = $C.DocumentElement.SITE.state;
+                PhysicalPath = $PhysicalPath;
+                Bindings     = $($C.DocumentElement.SITE.bindings -Split ",");
+            });
+        });
 
-            # Path for Appcmd
-            $AppCmd = "C:\windows\system32\inetsrv\appcmd.exe";
+        # Get the Application Pools
+        [Xml]$Xml = & "C:\windows\system32\inetsrv\appcmd.exe" "list" "apppool" "/xml";
+        $AppPools = $Xml.DocumentElement.AppPool | %{$_."APPPOOL.NAME"};
 
-            # Get the WebSites
-            [Xml]$Xml = & $AppCmd "list" "site" "/xml";
-            $Sites = $Xml.DocumentElement.Site | %{$_."SITE.NAME"};
+        # Enumerate and check each site to get the data
+        $ApplicationPools = $($AppPools | %{
 
-            # Enumerate and check each site to get the data
-            $WebSites = $($Sites | %{
+            # Get the site name
+            $AppPoolName = $_;
+            
+            # Get the data
+            [Xml]$C = & "C:\windows\system32\inetsrv\appcmd.exe" "list" "apppool" "$AppPoolName" "/xml";
+            [String[]]$T = & "C:\windows\system32\inetsrv\appcmd.exe" "list" "apppool" "$AppPoolName" "/text:*";
+            
+            # Get the list of websites for this Application Pool
+            [Xml]$W = & "C:\windows\system32\inetsrv\appcmd.exe" "list" "app" "/xml";
+            $WebSitesForAppPool = ($W.DocumentElement.App | ?{$_."APPPOOL.NAME" -eq "DefaultAppPool"} | Select SITE.NAME)."SITE.NAME" -Join ", ";
+            
+            # New PSCustomObject
+            $(New-Object PSCustomObject -Property @{
+                Name                  = $AppPoolName;
+                State                 = $C.DocumentElement.AppPool.state;
+                ManagedPipelineMode   = $C.DocumentElement.AppPool.PipelineMode;
+                ManagedRuntimeVersion = $C.DocumentElement.AppPool.RuntimeVersion;
+                StartMode             = ((($T | ?{$_ -like "*startMode*"}) -Split ":")[1]) -Replace """","";
+                AutoStart             = $([Bool](((($T | ?{$_ -like "*autoStart*"}) -Split ":")[1]) -Replace """",""));
+                Applications          = $WebSitesForAppPool;
+            });             
+        });
 
-                # Get the site name
-                $SiteName = $_;
-                
-                # Get the XML
-                [Xml]$C = & "C:\windows\System32\Inetsrv\appcmd.exe" "list" "site" "$SiteName" "/xml";
-                $PhysicalPath = & "C:\windows\System32\Inetsrv\appcmd.exe" "list" "app" "$SiteName/" "/text:[path='/'].physicalPath";
-                
-                # New PSCustomObject
+        # Get the Bindings
+        $WebBindings = $($Websites | Select -ExpandProperty Bindings | %{
+            # Get the binding split
+            $BS = $_.Split("/");
+            # Return the data
+            $(New-Object PSCustomObject -Property @{
+                Protocol = $BS[0];
+                Binding  = $BS[1];
+            });
+        });
+
+        # Get the Virtual Directories
+        [Xml]$Xml = & "C:\windows\system32\inetsrv\appcmd.exe" "list" "vdirs" "/xml";
+        $VDirs = $Xml.DocumentElement.VDIR | %{$_."VDIR.NAME"};
+
+        # Enumerate and check each site to get the data
+        $VirtualDirectories = $($VDirs | %{
+
+            # Get the site name
+            $VDirName = $_;
+            
+            # Get the data
+            [Xml]$C = & "C:\windows\system32\inetsrv\appcmd.exe" "list" "vdirs" "$VDirName" "/xml";
+            
+            # New PSCustomObject if proper vdir, appcmd reports apps as vdirs too
+            if ($C.DocumentElement.VDIR.path -ne "/") {
                 $(New-Object PSCustomObject -Property @{
-                    Name         = $SiteName;
-                    ID           = $C.DocumentElement.SITE."SITE.ID";
-                    State        = $C.DocumentElement.SITE.state;
-                    PhysicalPath = $PhysicalPath;
-                    Bindings     = $($C.DocumentElement.SITE.bindings -Split ",");
+                    Name         = $C.DocumentElement.VDIR."VDIR.NAME";
+                    Path         = $($C.DocumentElement.VDIR.path -replace "/","");
+                    PhysicalPath = $C.DocumentElement.VDIR.physicalPath;
                 });
-            });
+            }       
+        });
 
-            # Get the Application Pools
-            [Xml]$Xml = & $AppCmd "list" "apppool" "/xml";
-            $AppPools = $Xml.DocumentElement.AppPool | %{$_."APPPOOL.NAME"};
-
-            # Enumerate and check each site to get the data
-            $ApplicationPools = $($AppPools | %{
-
-                # Get the site name
-                $AppPoolName = $_;
-                
-                # Get the data
-                [Xml]$C = & $AppCmd "list" "apppool" "$AppPoolName" "/xml";
-                [String[]]$T = & $AppCmd "list" "apppool" "$AppPoolName" "/text:*";
-                
-                # Get the list of websites for this Application Pool
-                [Xml]$W = & $AppCmd "list" "app" "/xml";
-                $WebSitesForAppPool = ($W.DocumentElement.App | ?{$_."APPPOOL.NAME" -eq "DefaultAppPool"} | Select SITE.NAME)."SITE.NAME" -Join ", ";
-                
-                # New PSCustomObject
-                $(New-Object PSCustomObject -Property @{
-                    Name                  = $AppPoolName;
-                    State                 = $C.DocumentElement.AppPool.state;
-                    ManagedPipelineMode   = $C.DocumentElement.AppPool.PipelineMode;
-                    ManagedRuntimeVersion = $C.DocumentElement.AppPool.RuntimeVersion;
-                    StartMode             = ((($T | ?{$_ -like "*startMode*"}) -Split ":")[1]) -Replace """","";
-                    AutoStart             = $([Bool](((($T | ?{$_ -like "*autoStart*"}) -Split ":")[1]) -Replace """",""));
-                    Applications          = $WebSitesForAppPool;
-                });             
-            });
-
-            # Get the Bindings
-            $WebBindings = $($Websites | Select -ExpandProperty Bindings | %{
-                # Get the binding split
-                $BS = $_.Split("/");
-                # Return the data
-                $(New-Object PSCustomObject -Property @{
-                    Protocol = $BS[0];
-                    Binding  = $BS[1];
-                });
-            });
-
-            # Get the Virtual Directories
-            [Xml]$Xml = & $AppCmd "list" "vdirs" "/xml";
-            $VDirs = $Xml.DocumentElement.VDIR | %{$_."VDIR.NAME"};
-
-            # Enumerate and check each site to get the data
-            $VirtualDirectories = $($VDirs | %{
-
-                # Get the site name
-                $VDirName = $_;
-                
-                # Get the data
-                [Xml]$C = & $AppCmd "list" "vdirs" "$VDirName" "/xml";
-                
-                # New PSCustomObject if proper vdir, appcmd reports apps as vdirs too
-                if ($C.DocumentElement.VDIR.path -ne "/") {
-                    $(New-Object PSCustomObject -Property @{
-                        Name         = $C.DocumentElement.VDIR."VDIR.NAME";
-                        Path         = $($C.DocumentElement.VDIR.path -replace "/","");
-                        PhysicalPath = $C.DocumentElement.VDIR.physicalPath;
-                    });
-                }       
-            });
-
-            # Get a list .config files for each application so we can work out dependency chains
-            $ConfigFileContent = @();
-            $WebSites | %{
-                
-                # Get the site name and physical path
-                $WebsiteName = $_.Name;
-                $PhysicalPath = $(if($_.PhysicalPath){$_.PhysicalPath.Replace("%SystemDrive%",$Env:SystemDrive).Replace("%SystemRoot%",$env:SystemRoot)});
-                
-                # Enumerate the config files and add to the configfilecontent array
-                Get-ChildItem -Path $PhysicalPath -Recurse | ?{$_.Name -like "*.config"} | %{
-                    $ConfigFileContent += $(New-Object PSCustomObject -Property @{
-                        Site    = $WebsiteName;
-                        Path    = $_.FullName;
-                        Content = $(Get-Content $_.FullName | Out-String);
-                    }); 
-                };
+        # Get a list .config files for each application so we can work out dependency chains
+        $ConfigFileContent = @();
+        $WebSites | %{
+            
+            # Get the site name and physical path
+            $WebsiteName = $_.Name;
+            $PhysicalPath = $(if($_.PhysicalPath){$_.PhysicalPath.Replace("%SystemDrive%",$Env:SystemDrive).Replace("%SystemRoot%",$env:SystemRoot)});
+            
+            # Enumerate the config files and add to the configfilecontent array
+            Get-ChildItem -Path $PhysicalPath -Recurse | ?{$_.Name -like "*.config"} | %{
+                $ConfigFileContent += $(New-Object PSCustomObject -Property @{
+                    Site    = $WebsiteName;
+                    Path    = $_.FullName;
+                    Content = $(Get-Content $_.FullName | Out-String);
+                }); 
             };
-
-            # Return the data we want
-            return $(New-Object PSCustomObject -Property @{
-                WebSites            = $WebSites;
-                ApplicationPools    = $ApplicationPools;
-                WebBindings         = $WebBindings;
-                VirtualDirectories  = $VirtualDirectories;
-                ConfigurationFiles  = $ConfigFileContent;
-            });
-        }
-
-        # Ok get our desired timeout
-        $Timeout = (Get-Date).AddMinutes(2);
-
-        # Start the job
-        $GetIISConfigurationJob = Start-Job -ScriptBlock $GetIISConfigurationJobScriptBlock;
-
-        # Now we need to wait for the job to finish
-        While ("NotStarted","Starting","Running" -contains $GetIISConfigurationJob.State) {
-
-            # Ok first we need to check the timeout
-            if ($(Get-Date) -ge $Timeout) {
-                
-                # Ok kill the job
-                Remove-Job -Job $GetIISConfigurationJob -Force;
-
-                # And throw
-                throw [System.TimeoutException] "the IIS WebAdministration module import timed out";
-            }
-            else {
-                # Wait a bit longer instead
-                Start-Sleep -Seconds 5;
-            }
-        }
-
-        # Ok get the data
-        $IISConfiguration = Receive-Job -Job $GetIISConfigurationJob;
+        };
 
         # And add the IIS data to our HostInformation collection
-        Add-HostInformation -Name IISConfiguration -Value $IISConfiguration;
+        Add-HostInformation -Name IISConfiguration -Value $(New-Object PSCustomObject -Property @{
+            WebSites            = $WebSites;
+            ApplicationPools    = $ApplicationPools;
+            WebBindings         = $WebBindings;
+            VirtualDirectories  = $VirtualDirectories;
+            ConfigurationFiles  = $ConfigFileContent;
+        });
     };
 }
 catch {
