@@ -442,6 +442,7 @@ Function Test-RemoteConnection {
         return "WinRM";
     }
 
+    <#
     # Get the standard creds for PSExec in scope
     $Username = $PSCredential.UserName;
     $Password = $PSCredential.GetNetworkCredential().Password;
@@ -470,8 +471,9 @@ Function Test-RemoteConnection {
             return;
         }
     }
+    #>
 
     # No remote connectivity
-    $ErrorMessage = "The machine '$ComputerName' is not responding on any communication method. Please enable WinRM or PSExec on the target machine and try again";
+    $ErrorMessage = "The machine '$ComputerName' is not responding on WinRM. Please enable WinRM on the target machine and try again";
     throw [System.PlatformNotSupportedException] $ErrorMessage;
 }
