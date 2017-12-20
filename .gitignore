@@ -5,3 +5,5 @@ vagrantfile
 # Output data
 Output
 Windows-Audit-Data.xlsx
+Audit-Results.csv
+NetworkAuditStatistics.txt
