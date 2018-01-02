@@ -1,8 +1,16 @@
 [Cmdletbinding()]
 Param(
-    [Parameter(Mandatory=$True,ValueFromPipeline=$True)]
+    [Parameter(Mandatory=$True)]
     [ValidateNotNullOrEmpty()]
-    [PSCustomObject]$HostInformation
+    [PSCustomObject]$HostInformation,
+
+    [Parameter(Mandatory=$True)]
+    [ValidateNotNullOrEmpty()]
+    [PSCustomObject]$SQLServerName,
+
+    [Parameter(Mandatory=$True)]
+    [ValidateNotNullOrEmpty()]
+    [PSCustomObject]$SQLDatabaseName
 )
 
 #---------[ Global Declarations ]---------
@@ -17,27 +25,27 @@ $WarningTrigger = $False;
 
 # Import our functions from the lib module
 try {
-    Write-Host "Importing functions library: " -ForegroundColor Yellow -NoNewline;
+    Write-Host "Importing Audit module: " -ForegroundColor Yellow -NoNewline;
     Import-Module ".\Lib\Audit\Audit-Functions.psm1" -DisableNameChecking;
     Write-Host "Succeeded." -ForegroundColor Green;
 }
 catch {
     # Can't use Write-ShellMessage here
-    $Message = "There was a problem attempting to import the functions library: $($_.Exception.Message)";
+    $Message = "There was a problem attempting to import the Audit module: $($_.Exception.Message)";
     Write-Host $Message -ForegroundColor Red;
     Exit(1);
 }
 
 # Import the ImportExcel module
 try {
-    Write-Host "Importing ImportExcel library: " -ForegroundColor Yellow -NoNewline;
-    Import-Module ImportExcel;
+    Write-Host "Importing SQLServer module: " -ForegroundColor Yellow -NoNewline;
+    Import-Module SqlServer;
     Write-Host "Succeeded." -ForegroundColor Green;
 }
 catch {
     # Failed
-    $Message = "There was a problem attempting to import the ImportExcel module: $($_.Exception.Message) ";
-    $Message += "Please make sure this module is installed prior to filtering your Audit data (https://github.com/dfinke/ImportExcel).";
+    $Message = "There was a problem attempting to import the SQLServer module: $($_.Exception.Message) ";
+    $Message += "Please make sure this module is installed prior to filtering your Audit data (https://docs.microsoft.com/en-us/sql/ssms/download-sql-server-ps-module).";
     Write-Host $Message -ForegroundColor Red;
     Exit(1);
 }
@@ -50,6 +58,7 @@ try {
     $Filter = New-Object PSCustomObject -Property @{
         "00_SystemInformation" = $([PSCustomObject]@{
             "HostName"                  = $HostInformation.Win32_OperatingSystem.Hostname;
+            "MachineIdentifier"         = $HostInformation.Win32_OperatingSystem.MachineIdentifier;
             "Domain Name"               = $HostInformation.Win32_ComputerSystem.Domain;
             "IPv4 Address"              = $((($HostInformation.Win32_NetworkAdapterConfiguration | ?{$_.IPAddress} | select IPAddress).IPAddress|?{$_| Is-Ipv4Address}) -Join ",");
             "OS"                        = $HostInformation.Win32_OperatingSystem.Caption;
@@ -81,50 +90,50 @@ try {
         "01_NetworkInterfaces" = $($HostInformation.Win32_NetworkAdapter | %{
             $Index = $_.Index;
             [PSCustomObject]@{
-                "HostName"      = $HostInformation.Win32_OperatingSystem.Hostname;
-                "Description"   = $_.Description
-                "Adapter Index" = $Index;
-                "IPv4 Address"  = $((($HostInformation.Win32_NetworkAdapterConfiguration | ?{$_.MachineIdentifier -eq $HostInformation.Win32_OperatingSystem.MachineIdentifier -and $_.Index -eq $Index}).IPAddress | ?{Is-Ipv4Address $_}) -Join  ", ");
-                "IPv6 Address"  = $((($HostInformation.Win32_NetworkAdapterConfiguration | ?{$_.MachineIdentifier -eq $HostInformation.Win32_OperatingSystem.MachineIdentifier -and $_.Index -eq $Index}).IPAddress | ?{Is-Ipv6Address $_}) -Join  ", ");
-                "Domain Name"   = $($HostInformation.Win32_NetworkAdapterConfiguration | ?{$_.MachineIdentifier -eq $HostInformation.Win32_OperatingSystem.MachineIdentifier -and $_.Index -eq $Index} | Select -ExpandProperty DnsDomain);
-                "Subnet Mask"   = $(($HostInformation.Win32_NetworkAdapterConfiguration | ?{$_.MachineIdentifier -eq $HostInformation.Win32_OperatingSystem.MachineIdentifier -and $_.Index -eq $Index}).IpSubnet | Select -First 1);
-                "Gateway"       = $(($HostInformation.Win32_NetworkAdapterConfiguration | ?{$_.MachineIdentifier -eq $HostInformation.Win32_OperatingSystem.MachineIdentifier -and $_.Index -eq $Index}).DefaultIPGateway -Join ", ");
-                "DNS Servers"   = $(($HostInformation.Win32_NetworkAdapterConfiguration | ?{$_.MachineIdentifier -eq $HostInformation.Win32_OperatingSystem.MachineIdentifier -and $_.Index -eq $Index}).DNSServerSearchOrder -Join ", ");
+                "MachineIdentifier" = $HostInformation.Win32_NetworkAdapterConfiguration.MachineIdentifier;
+                "Description"       = $_.Description
+                "Adapter Index"     = $Index;
+                "IPv4 Address"      = $((($HostInformation.Win32_NetworkAdapterConfiguration | ?{$_.MachineIdentifier -eq $HostInformation.Win32_OperatingSystem.MachineIdentifier -and $_.Index -eq $Index}).IPAddress | ?{Is-Ipv4Address $_}) -Join  ", ");
+                "IPv6 Address"      = $((($HostInformation.Win32_NetworkAdapterConfiguration | ?{$_.MachineIdentifier -eq $HostInformation.Win32_OperatingSystem.MachineIdentifier -and $_.Index -eq $Index}).IPAddress | ?{Is-Ipv6Address $_}) -Join  ", ");
+                "Domain Name"       = $($HostInformation.Win32_NetworkAdapterConfiguration | ?{$_.MachineIdentifier -eq $HostInformation.Win32_OperatingSystem.MachineIdentifier -and $_.Index -eq $Index} | Select -ExpandProperty DnsDomain);
+                "Subnet Mask"       = $(($HostInformation.Win32_NetworkAdapterConfiguration | ?{$_.MachineIdentifier -eq $HostInformation.Win32_OperatingSystem.MachineIdentifier -and $_.Index -eq $Index}).IpSubnet | Select -First 1);
+                "Gateway"           = $(($HostInformation.Win32_NetworkAdapterConfiguration | ?{$_.MachineIdentifier -eq $HostInformation.Win32_OperatingSystem.MachineIdentifier -and $_.Index -eq $Index}).DefaultIPGateway -Join ", ");
+                "DNS Servers"       = $(($HostInformation.Win32_NetworkAdapterConfiguration | ?{$_.MachineIdentifier -eq $HostInformation.Win32_OperatingSystem.MachineIdentifier -and $_.Index -eq $Index}).DNSServerSearchOrder -Join ", ");
             }
         });
         "02_FirewallRules" = $($HostInformation.FirewallRules | %{
             [PSCustomObject]@{
-                "HostName"      = $HostInformation.Win32_OperatingSystem.Hostname;
-                "Name" = $_.Name
-                "Local Ports" = $_.LocalPorts
-                "Remote Ports" = $_.RemotePorts
-                "Local Addresses" = $_.LocalAddresses
-                "Remote Addresses" = $_.RemoteAddresses
-                "Direction" = $_.Direction;
+                "MachineIdentifier" = $_.MachineIdentifier;
+                "Name"              = $_.Name
+                "Local Ports"       = $_.LocalPorts
+                "Remote Ports"      = $_.RemotePorts
+                "Local Addresses"   = $_.LocalAddresses
+                "Remote Addresses"  = $_.RemoteAddresses
+                "Direction"         = $_.Direction;
             }
         });
         "03_TLSCertificates" = $($HostInformation.TLSCertificates | ?{!$_.PSIsContainer} | %{
             [PSCustomObject]@{
-                "HostName"        = $HostInformation.Win32_OperatingSystem.Hostname;
-                "Friendly Name"   = $_.FriendlyName;
-                "Expires"         = $_.NotAfter;
-                "Thumbprint"      = $_.Thumbprint;
-                "Has Private Key" = $_.HasPrivateKey;
-                "Issuer"          = $_.Issuer;
+                "MachineIdentifier" = $_.MachineIdentifier;
+                "Friendly Name"     = $_.FriendlyName;
+                "Expires"           = $_.NotAfter;
+                "Thumbprint"        = $_.Thumbprint;
+                "Has Private Key"   = $_.HasPrivateKey;
+                "Issuer"            = $_.Issuer;
             }
         });
         "04_StorageDisks" = $($HostInformation.Win32_DiskDrive | %{
             [PSCustomObject]@{
-                "HostName"       = $HostInformation.Win32_OperatingSystem.Hostname;
-                "Disk Type"      = $_.Caption;
-                "Interface Type" = $_.InterfaceType;
-                "Media Type"     = $_.MediaType;
-                "Size"           = $([Math]::Round(($_.Size / 1GB)).ToString() + " GB");
+                "MachineIdentifier" = $_.MachineIdentifier;
+                "Disk Type"         = $_.Caption;
+                "Interface Type"    = $_.InterfaceType;
+                "Media Type"        = $_.MediaType;
+                "Size"              = $([Math]::Round(($_.Size / 1GB)).ToString() + " GB");
             }
         });
         "05_StorageVolumes" = $($HostInformation.Win32_Volume | %{
             [PSCustomObject]@{
-                "HostName"          = $HostInformation.Win32_OperatingSystem.Hostname;
+                "MachineIdentifier" = $_.MachineIdentifier;
                 "Caption"           = $_.Caption;
                 "Mount Point"       = $_.DriveLetter;
                 "Type"              = $(ConvertTo-DiskDriveTypeString -DriveTypeEnum $_.DriveType);
@@ -144,7 +153,7 @@ try {
             $HostInformation.Win32_Share | %{
                 $ShareName = $_.Name;
                 [PSCustomObject]@{
-                    "HostName"                  = $HostInformation.Win32_OperatingSystem.Hostname;
+                    "MachineIdentifier"         = $_.MachineIdentifier;
                     "Shared Folder Path"        = $_.Path;
                     "Shared Folder Name"        = $_.Name;
                     "Shared Folder Description" = $_.Description;
@@ -156,7 +165,7 @@ try {
             # Mounted drives
             $HostInformation.Win32_MappedLogicalDisk | %{
                 [PSCustomObject]@{
-                    "HostName"                  = $HostInformation.Win32_OperatingSystem.Hostname;
+                    "MachineIdentifier"         = $_.MachineIdentifier;
                     "Shared Folder Path"        = "N/A";
                     "Shared Folder Name"        = "N/A";
                     "Shared Folder Description" = "N/A";
@@ -168,62 +177,62 @@ try {
         );
         "07_Applications" = $($HostInformation.Applications | %{
             [PSCustomObject]@{
-                "HostName"        = $HostInformation.Win32_OperatingSystem.Hostname;
-                "Display Name"    = $_.DisplayName;
-                "Display Version" = $_.DisplayVersion;
-                "Publisher"       = $_.Publisher;
-                "Install Date"    = $_.InstallDate;
-                "Help Link"       = $_.HelpLink;
+                "MachineIdentifier" = $_.MachineIdentifier;
+                "Display Name"      = $_.DisplayName;
+                "Display Version"   = $_.DisplayVersion;
+                "Publisher"         = $_.Publisher;
+                "Install Date"      = $_.InstallDate;
+                "Help Link"         = $_.HelpLink;
             }
         });
         "08_WindowsFeatures" = $($HostInformation.RolesAndFeatures | ?{$_.Installed} | Sort -Property Path | %{
             [PSCustomObject]@{
-                "HostName"     = $HostInformation.Win32_OperatingSystem.Hostname;
-                "Display Name" = $_.DisplayName;
-                "Name"         = $_.Name;
-                "Feature Type" = $_.FeatureType;
-                "Path"         = $_.Path;
-                "Subfeatures"  = $($_.Subfeatures -join ", ");
+                "MachineIdentifier" = $_.MachineIdentifier;
+                "Display Name"      = $_.DisplayName;
+                "Name"              = $_.Name;
+                "Feature Type"      = $_.FeatureType;
+                "Path"              = $_.Path;
+                "Subfeatures"       = $($_.Subfeatures -join ", ");
             }
         });
         "09_ScheduledTasks" = $($HostInformation.ScheduledTasks | %{
             [PSCustomObject]@{
-                "HostName"      = $HostInformation.Win32_OperatingSystem.Hostname;
-                "Name"          = $_.Name;
-                "Enabled"       = $_.Enabled;
-                "Actions"       = $_.TaskToRun;
-                "Last Run Time" = $_.LastRunTime;
-                "Last Result"   = $_.LastResult;
+                "MachineIdentifier" = $_.MachineIdentifier;
+                "Name"              = $_.Name;
+                "Enabled"           = $_.Enabled;
+                "Actions"           = $_.TaskToRun;
+                "Last Run Time"     = $_.LastRunTime;
+                "Last Result"       = $_.LastResult;
             }
         });
         "10_USBdevices" = $($HostInformation.Win32_USBControllerDevice | %{
             [PSCustomObject]@{
-                "HostName"     = $HostInformation.Win32_OperatingSystem.Hostname;
-                "Name"         = $_.Name;
-                "Caption"      = $_.Caption;
-                "Description"  = $_.Description;
-                "Manufacturer" = $_.Manufacturer;
-                "Service"      = $_.Service;
-                "Status"       = $_.Status;
+                "MachineIdentifier" = $_.MachineIdentifier;
+                "Name"              = $_.Name;
+                "Caption"           = $_.Caption;
+                "Description"       = $_.Description;
+                "Manufacturer"      = $_.Manufacturer;
+                "Service"           = $_.Service;
+                "Status"            = $_.Status;
             }
         });
         "11_Serialdevices" = $($HostInformation.Win32_PNPEntity | ?{$_.ClassGuid -eq "{4d36e978-e325-11ce-bfc1-08002be10318}"} | %{
             [PSCustomObject]@{
-                "HostName"     = $HostInformation.Win32_OperatingSystem.Hostname;
-                "Caption"      = $_.Caption;
-                "Name"         = $_.Name;
-                "PNP Device ID" = $_.PNPDeviceID;
-                "Status"       = $_.Status;
+                "MachineIdentifier" = $_.MachineIdentifier;
+                "Caption"           = $_.Caption;
+                "Name"              = $_.Name;
+                "PNP Device ID"     = $_.PNPDeviceID;
+                "Status"            = $_.Status;
             }
         });
         "12_IISInformation" = $($HostInformation.IISSites | %{
             $SiteName = $_.Name;
             if ($_) {
                 [PSCustomObject]@{
-                    "HostName"         = $HostInformation.Win32_OperatingSystem.Hostname;
-                    "Site Name"        = $_.Name;
-                    "Bindings"         = $((($_.Bindings -Replace "P=","Protocol=") -Replace "B=","Ports=") -Replace "S=","SSL=");
-                    "Physical Path"    = $_.PhysicalPath;
+                    "MachineIdentifier" = $_.MachineIdentifier;
+                    "Site Name"         = $_.Name;
+                    "Bindings"          = $((($_.Bindings -Replace "P=","Protocol=") -Replace "B=","Ports=") -Replace "S=","SSL=");
+                    "Physical Path"     = $_.PhysicalPath;
                     "Folder Dependencies" = $(($HostInformation.IISSitesConfiguration | ?{$_.Name -eq $SiteName} | %{
                         if ($_){
                             $Content = $_.ConfigurationFileContent.Split("`r`n");
@@ -266,7 +275,7 @@ try {
             $Databases | ?{$_.DBID} | %{
                 $DBStatus = ($_.Status -split ", ");
                 [PSCustomObject]@{
-                    "HostName"                  = $HostInformation.Win32_OperatingSystem.Hostname;
+                    "MachineIdentifier"         = $_.MachineIdentifier;
                     "Instance Name"             = $Instance.InstanceName;
                     "Connection Identifier"     = $Instance.ConnectionIdentifier;
                     "SQL Version"               = $Instance.InstanceVersion;
@@ -291,22 +300,22 @@ try {
         });
         "14_WindowsUpdates" = $($HostInformation.WindowsUpdates | %{
             [PSCustomObject]@{
-                "HostName"    = $HostInformation.Win32_OperatingSystem.Hostname;
-                Description = $_.Description
+                MachineIdentifier   = $_.MachineIdentifier;
+                Description         = $_.Description
                 ServicePackInEffect = $_.ServicePackInEffect;
-                FixComments = $_.FixComments;
-                InstalledOn = $_.InstalledOn;
-                Caption = $_.Caption;
-                Name = $_.Name;
-                HotFixID = $_.HotFixID;
-                Status = $_.Status;
-                InstallDate = $_.InstallDate;
-                InstalledBy = $_.InstalledBy;
+                FixComments         = $_.FixComments;
+                InstalledOn         = $_.InstalledOn;
+                Caption             = $_.Caption;
+                Name                = $_.Name;
+                HotFixID            = $_.HotFixID;
+                Status              = $_.Status;
+                InstallDate         = $_.InstallDate;
+                InstalledBy         = $_.InstalledBy;
             }
         });
         "15_NetworkTopology" = $($HostInformation.NetworkConnections | %{
             [PSCustomObject]@{
-                HostName           = $HostInformation.Win32_OperatingSystem.Hostname;
+                MachineIdentifier  = $_.MachineIdentifier;
                 Protocol           = $_.Protocol;
                 LocalAddress       = $_.LocalAddress;
                 LocalPort          = $_.LocalPort;
@@ -330,7 +339,7 @@ catch {
 }
 
 # Now we need to eumerate the $Filter object's properties and write out
-Write-ShellMessage -Message "Begining data write to disk" -Type INFO;
+Write-ShellMessage -Message "Begining data write to SQL Server '$SQLServerName'" -Type INFO;
 $Filter.PSObject.Properties | Sort -Property Name | %{
     
     try {
@@ -338,29 +347,60 @@ $Filter.PSObject.Properties | Sort -Property Name | %{
         $SectionName = $_.Name -split "_" | Select -Last 1;
         $SectionValue = $_.Value | Select -Property *;
 
-        # Get the hostname for error writing and define the output file
+        # Get the hostname for error writing
         $HostName = $HostInformation.Win32_OperatingSystem.Hostname
-        $FilePath = "Filtered-Windows-Audit-Data.xlsx";
 
         # Export to File
         if ($SectionValue) {
-            Write-ShellMessage -Message "Exporting '$SectionName' to '$FilePath' for host '$HostName'" -Type INFO;
+            Write-ShellMessage -Message "Exporting '$SectionName' to SQL database '$SQLDatabaseName' for host '$HostName'" -Type INFO;
             
-            # Ok we need to check if the file exists as we can't use the append switch on a fresh file
-            if (Test-Path $FilePath) {
-            
-                # Now we need to check whether the worksheet exists for the same reason
-                if ($(try {Import-Excel -Path $FilePath -WorksheetName $SectionName;$True} catch {$False})) {
-                    $SectionValue | Export-Excel -Path $FilePath -WorkSheetname $SectionName -Append;
-                }
-                else {
-                    $SectionValue | Export-Excel -Path $FilePath -WorkSheetname $SectionName;
-                }
+            # Quick check for dodgy hashtable returns, happens on older PS versions over ICM
+            if (($SectionValue | gm | Select -ExpandProperty TypeName -First 1).Contains("Hashtable")) {
+                # Convert it back to an enumerable array
+                $SectionValue = @(,$SectionValue);
+            }
 
+            # Work out which property we're angling for based on type
+            if (($SectionValue | gm | Select -ExpandProperty TypeName -First 1).Contains("DataRow")) {
+                $MemberType = "Property";
             }
             else {
-                $SectionValue | Export-Excel -Path $FilePath -WorkSheetname $SectionName;
+                $MemberType = "NoteProperty";
             }
+
+            # Create the new DT
+            $DataTable = New-Object System.Data.DataTable;
+            $Exclusions = "PSComputerName","PSShowComputerName","RunspaceId","MachineIdentifier";
+            $Columns = ($SectionValue | gm -MemberType $MemberType | ?{$Exclusions -notcontains $_.Name}).Name;
+            $DataTable.Columns.Add($(New-Object System.Data.DataColumn "MachineIdentifier",([string])));
+            $Columns | %{
+                $C = New-Object System.Data.DataColumn $_,([string]);
+                $DataTable.Columns.Add($C);
+            }
+
+            # Add the rows
+            $SectionValue | %{
+                $Obj = $_;
+                $Row = $DataTable.NewRow();
+                $Row.MachineIdentifier = $Obj.MachineIdentifier;
+                $Columns | %{
+                    $Col = $_;
+                    $Row."$($Col)" = $Obj."$($Col)";
+                }
+                $DataTable.Rows.Add($Row);                
+            }
+
+            # Splat up the params for legibility
+            $SQLParams = @{
+                InputData      = $DataTable;
+                ServerInstance = $SQLServerName;
+                DatabaseName   = $SQLDatabaseName;
+                SchemaName     = "dbo";
+                TableName      = $SectionName;
+            }
+
+            # Write the data
+            Write-SqlTableData @SQLParams -Force;
         }
         else {
             Write-ShellMessage -Message "Section '$SectionName' for host '$HostName' is null; skipping" -Type WARNING;
@@ -368,7 +408,7 @@ $Filter.PSObject.Properties | Sort -Property Name | %{
     }
     catch {
         # Write out and set our warning trigger
-        Write-ShellMessage -Message "There was an error attempting to compile data for '$Hostname' and write it to disk" -Type ERROR -ErrorRecord $_;
+        Write-ShellMessage -Message "There was an error attempting to compile data for '$Hostname' and write it to the SQL database" -Type ERROR -ErrorRecord $_;
         $WarningTrigger = $True;
     }
 }
