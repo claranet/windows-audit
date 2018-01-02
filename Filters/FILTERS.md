@@ -7,8 +7,8 @@ The filter needs to be defined as a single `PSCustomObject` with named key value
 
 The `$HostInformation` parameter that gets passede into the filter can be accessed using dot notation to obtain the properties you seek. For a full property map please see the [properties map](#full-property-map) below.
 
-_Note: For more efficient SQL joins, be sure to include the `MachineIdentifier` parameter in any custom filter you make when exporting to SQL. This is simply a GUID rather than text to join the tables on._
-
+Example Filter
+---------
 ##### System Information (key:value)
 	- HostName
 	- Domain Name
@@ -195,10 +195,18 @@ _Note: For more efficient SQL joins, be sure to include the `MachineIdentifier` 
 
 Full property map
 ---------
-The script that gets executed on the named target will gather the following information:
+Some Notes:
+
+* The `Win32_USBControllerDevice` class is enumerated by the `[Wmi]$_.Dependent` property in order to obtain the connected devices. If you are chaining multiple USB hub type devices your output may not be captured. In this circumstance you can modify line `#13` in the `Win32_USBControllerDevice.ps1` file to further enumerate this.
+
+* The `Win32_Share` class also has an additional `$_.SharePermissions` property added, which you can use to view the share permissions.
+
+* The `Win32_PNPEntity` class can be filtered using the `ClassGUID` of `{4d36e978-e325-11ce-bfc1-08002be10318}` to obtain Serial devices only.
+
+* _All_ of the property groups (including WMI) contain a `MachineIdentifier` property, this can be used to correlate rows from different tables/worksheets to the same machine. Should you be using SQL to compile the results, _be sure to include this in your filter for more efficient joins._
 
 #### WMI Classes
-Click on the WMI class name for a full list of methods and properties from the MSDN.
+Click on the WMI class name for a full list of properties from the MSDN.
 
 | WMI Class  | HostInformation Property  |
 |---|---|
@@ -218,45 +226,21 @@ Click on the WMI class name for a full list of methods and properties from the M
 | [Win32_Printer](https://msdn.microsoft.com/en-us/library/aa394363(v=vs.85).aspx) | `$_.Win32_Printer` |
 | [Win32_Service](https://msdn.microsoft.com/en-us/library/aa394418(v=vs.85).aspx) | `$_.Win32_Service` |
 
-_(Note: the `Win32_USBControllerDevice` class is enumerated by the `[Wmi]$_.Dependent` property in order to obtain the connected devices. If you are using certain types of USB hub to chain multiple devices your output may not be captured. In this circumstance you can modify line `#13` in the `Win32_USBControllerDevice.ps1` file to further enumerate this.)_
-
-_(Note 2: the `Win32_Share` class also has an additional `$_.SharePermissions` property added, which you can use to view the share permissions.)_
-
 #### Other Available Properties
 
 | Property Description  | HostInformation Property  | Contains |
 |---|---|---|
-| Hostname | `$_.SystemInfo.HostName` | String |
-| Is Virtual Machine | `$_.SystemInfo.IsVirtualMachine` | String |
-| Machine Type | `$_.SystemInfo.MachineType` | String |
-| Total Physical Memory | `$_.Memory.WindowsMemory.TotalPhysicalMemory` | String |
-| Available Physical Memory | `$_.Memory.WindowsMemory.AvailablePhysicalMemory` | String |
-| Virtual Memory Max Size | `$_.Memory.WindowsMemory.VirtualMemoryMaxSize` | String |
-| Virtual Memory Available | `$_.Memory.WindowsMemory.VirtualMemoryAvailable` | String |
-| Virtual Memory In Use | `$_.Memory.WindowsMemory.VirtualMemoryInUse` | String |
-| NTP Configuration | `$_.Networking.NTPConfiguration` | Output from `w32tm /query /configuration` |
-| Firewall Zone | `$_.Networking.FirewallZone` | String |
-| Firewall Rules | `$_.Networking.FirewallRules` | Name<br/> Description<br/> ApplicationName<br/> serviceName<br/> Protocol<br/> LocalPorts<br/> RemotePorts<br/> LocalAddresses<br/> RemoteAddresses<br/> IcmpTypesAndCodes<br/> Direction<br/> Interfaces<br/> InterfaceTypes<br/> Enabled<br/> Grouping<br/> Profiles<br/> EdgeTraversal<br/> Action<br/> EdgeTraversalOptions<br/> LocalAppPackageId<br/> LocalUserOwner<br/> LocalUserAuthorizedList<br/> RemoteUserAuthorizedList<br/> RemoteMachineAuthorizedList<br/> SecureFlags |
-| Installed Apps (x32) | `$_.Applications.x32` | DisplayName<br /> DisplayVersion<br /> Publisher<br /> InstallDate |
-| Installed Apps (x64) | `$_.Applications.x64` | DisplayName<br /> DisplayVersion<br /> Publisher<br /> InstallDate |
-| Windows Roles & Features | `$_.RolesAndFeatures` | Name<br /> Installed<br /> FeatureType<br /> Path<br /> Depth<br /> DependsOn<br /> Parent<br /> SubFeatures<br /> SystemService<br /> Notification<br /> BestPracticesModelId<br /> AdditionalInfo<br /> |
-| IIS WebSites | `$_.IISConfiguration.WebSites` | ID<br /> Name<br /> Bindings<br /> PhysicalPath<br /> State<br /> |
-| IIS App Pools | `$_.IISConfiguration.ApplicationPools` | Name<br /> AutoStart<br /> Applications<br /> StartMode<br /> State<br /> ManagedRuntimeVersion<br /> ManagedPipelineMode<br /> |
-| IIS Web Bindings | `$_.IISConfiguration.WebBindings` | BindingInformation<br /> Protocol</br> |
-| IIS Virtual Dirs | `$_.IISConfiguration.VirtualDirectories` | PhysicalPath<br /> Name<br /> Path<br /> |
-| IIS Config Files | `$_.IISConfiguration.ConfigurationFiles` | XML Content of associated *.config files |
-| TLS Certificates | `$_.TLSCertificates` | PSPath<br /> PSParentPath<br /> PSChildName<br /> PSDrive<br /> PSProvider<br /> PSIsContainer<br /> Archived<br /> Extensions<br /> FriendlyName<br /> IssuerName<br /> NotAfter<br /> NotBefore<br /> HasPrivateKey<br /> PrivateKey<br /> PublicKey<br /> RawData<br /> SerialNumber<br /> SubjectName<br /> SignatureAlgorithm<br /> Thumbprint<br /> Version<br /> Handle<br /> Issuer<br /> Subject<br /> |
-| Windows Updates History | `$_.WindowsUpdates.UpdateHistory` | Title<br /> Description<br /> Date<br /> Operation<br /> |
-| WSUS Server | `$_.WindowsUpdates.WSUSServer` | String |
-| PowerShell Version | `$_.Management.PowerShellVersion` | String |
-| .NET Version | `$_.Management.DotNetVersion` | String |
-| WinRM Enabled | `$_.Management.WinRMEnabled` | String |
-| Scheduled Tasks | $_.ScheduledTasks | NextRunTime<br /> State<br /> Actions<br /> Path<br /> Name<br /> LastRunTime<br /> MissedRuns<br /> LastResult<br /> Enabled<br /> |
-| DC Info | `$_.ActiveDirectoryDomainController.DomainController` | ComputerObjectDN<br /> DefaultPartition<br /> Domain<br /> Enabled<br /> Forest<br /> HostName<br /> InvocationId<br /> IPv4Address<br /> IPv6Address<br /> IsGlobalCatalog<br /> IsReadOnly<br /> LdapPort<br /> Name<br /> NTDSSettingsObjectDN<br /> OperatingSystem<br /> OperatingSystemHotfix<br /> OperatingSystemServicePack<br /> OperatingSystemVersion<br /> OperationMasterRoles<br /> Partitions<br /> ServerObjectDN<br /> ServerObjectGuid<br /> Site<br /> SslPort<br /> PropertyNames<br /> PropertyCount<br /> |
-| Domain Info | `$_.ActiveDirectoryDomainController.Domain` | AllowedDNSSuffixes<br /> ChildDomains<br /> ComputersContainer<br /> DeletedObjectsContainer<br /> DistinguishedName<br /> DNSRoot<br /> DomainControllersContainer<br /> DomainMode<br /> DomainSID<br /> ForeignSecurityPrincipalsContainer<br /> Forest<br /> InfrastructureMaster<br /> LastLogonReplicationInterval<br /> LinkedGroupPolicyObjects<br /> LostAndFoundContainer<br /> ManagedBy<br /> Name<br /> NetBIOSName<br /> ObjectClass<br /> ObjectGUID<br /> ParentDomain<br /> PDCEmulator<br /> QuotasContainer<br /> ReadOnlyReplicaDirectoryServers<br /> ReplicaDirectoryServers<br /> RIDMaster<br /> SubordinateReferences<br /> SystemsContainer<br /> UsersContainer<br /> PropertyNames<br /> PropertyCount<br /> |
-| Forest Info | `$_.ActiveDirectoryDomainController.Forest` | ApplicationPartitions<br /> CrossForestReferences<br /> DomainNamingMaster<br /> Domains<br /> ForestMode<br /> GlobalCatalogs<br /> Name<br /> PartitionsContainer<br /> RootDomain<br /> SchemaMaster<br /> Sites<br /> SPNSuffixes<br /> UPNSuffixes<br /> PropertyNames<br /> PropertyCount<br /> |
-| Directory Service Specific Entries |  `$_.ActiveDirectoryDomainController.DSE` | configurationNamingContext<br /> currentTime<br /> defaultNamingContext<br /> dnsHostName<br /> domainControllerFunctionality<br /> domainFunctionality<br /> dsServiceName<br /> forestFunctionality<br /> highestCommittedUSN<br /> isGlobalCatalogReady<br /> isSynchronized<br /> ldapServiceName<br /> namingContexts<br /> rootDomainNamingContext<br /> schemaNamingContext<br /> serverName<br /> subschemaSubentry<br /> supportedCapabilities<br /> supportedControl<br /> supportedLDAPPolicies<br /> supportedLDAPVersion<br /> supportedSASLMechanisms<br /> Synchronized<br /> GlobalCatalogReady<br /> PropertyNames<br /> PropertyCount<br /> |
-| DC Diag |  `$_.ActiveDirectoryDomainController.DCDiag` | Output from `dcdiag` |
-| SQL Instance Information | `$_.SQLServer` | ServerName<br /> InstanceName<br /> ConnectionIdentifier<br /> Databases<br /><br />_Databases objects enumerate to:_<br /> Name<br /> Owner<br /> CreatedDate<br /> CompatibilityLevel<br /> DBID<br /> Status<br /> Size<br /> |
-| Apache Virtual Hosts | `$_.ApacheVirtualHosts` | String[] of Virtual Hosts |
-| Tomcat Applications | `$_.TomcatApplications` | String[] of applications |
+| Applications | `$_.Applications` | DisplayName<br/> DisplayVersion<br/> InstallLocation<br/> Publisher<br/> HelpLink |
+| IIS Sites | `$_.IISSites` | IISVersion<br/> Type<br/> Name<br/> ID<br/> State<br/> PhysicalPath<br/> Bindings<br/> ApplicationPoolName<br/> ApplicationPoolState<br/> ApplicationPoolIdentityType<br/> ApplicationPoolUser<br/> ApplicationPoolManagedPipelineMode<br/> ApplicationPoolManagedRuntimeVersion<br/> ApplicationPoolStartMode<br/> ApplicationPoolAutoStart |
+| IIS Configuration | `$_.IISSitesConfiguration` | IISVersion<br/> Name<br/> ID<br/> SitePath<br/> ConfigurationFileName<br/> ConfigurationFilePath<br/> ConfigurationFileContent |
+| SQL Server Instances | `$_.SQLServerInstances` | InstanceName<br/> InstanceVersion<br/> ConnectionIdentifier<br/> Accessible |
+| SQL Server Database | `$_.SQLServerDatabases` | InstanceName<br/> ConnectionIdentifier<br/> Name<br/> Size<br/> Owner<br/> DBID<br/> CreatedDate<br/> Status<br/> CompatibilityLevel |
+| Firewall Configuration | `$_.FirewallConfiguration` | ProfileName<br/> FileName<br/> UnicastResponseToMulticast<br/> RemoteManagement<br/> LogAllowedConnections<br/> LogDroppedConnections<br/> State<br/> Firewall<br/> InboundUserNotification<br/> MaxFileSize |
+| Firewall Rules | `$_.FirewallRules` | Name<br/> Enabled<br/> Direction<br/> Profiles<br/> Grouping<br/> LocalAddresses<br/> RemoteAddresses<br/> Protocol<br/> LocalPorts<br/> RemotePorts<br/> EdgeTraversal |
+| Network Connections (Netstat) | `$_.NetworkConnections` | Protocol<br/> LocalAddress<br/> LocalPort<br/> RemoteAddress<br/> RemotePort<br/> State<br/> ProcessID<br/> ProcessName<br/> ProcessDescription<br/> ProcessProduct<br/> ProcessFileVersion<br/> ProcessExePath<br/> ProcessCompany |
+| Roles & Features | `$_.RolesAndFeatures` | MachineVersion<br/> DisplayName<br/> Name<br/> FeatureType<br/> Path<br/> Subfeatures<br/> Installed |
+| Scheduled Tasks | `$_.ScheduledTasks` | Name<br/> Enabled<br/> NextRunTime<br/> Status<br/> LogonMode<br/> LastRunTime<br/> LastResult<br/> Author<br/> TaskToRun<br/> StartIn<br/> Comment<br/> IdleTime<br/> PowerManagement<br/> RunAsUser<br/> DeleteIfNotRescheduled<br/> StopIfOverrun<br/> ScheduleType<br/> StartTime<br/> StartDate<br/> EndDate<br/> Days<br/> Months<br/> RepeatEvery<br/> RepeatUntil<br/> RepeatUntilDuration<br/> RepeatStopIfStillRunning |
+| System Properties | `$_.SystemProperties` | PowerShellVersion<br/> DotNetVersion<br/> Location |
+| Time Configuration | `$_.Time` | AnnounceFlags<br/> EventLogs<br/> FrequencyCorrectRate<br/> HoldPeriod<br/> LargePhaseOffset<br/> LocalClockDispersion<br/> MaxAllowedPhaseOffset<br/> MaxNegPhaseCorrection<br/> MaxPollInterval<br/> PaxPosPhaseCorrection<br/> MinPollInterval<br/> PhaseCorrectRate<br/> PollAdjustFactor<br/> Server<br/> SpikeWatchPeriod<br/> TimeJumpAuditOffset<br/> Type<br/> UpdateInterval |
+| TLS Certificates | `$_.TLSCertificates` | EnhancedKeyUsageList<br/> DnsNameList<br/> SendAsTrustedIssuer<br/> EnrollmentPolicyEndPoint<br/> EnrollmenterverEndPoint<br/> PolicyId<br/> Archived<br/> Extension<br/> FriendlyName<br/> IssuerName<br/> NotAfter<br/> NotBefore<br/> HasPrivateKey<br/> PublicKey<br/> SerialNumber<br/> SubjectName<br/> SignatureAlgorithm<br/> Thumbprint<br/> Version<br/> Handle<br/> Issuer<br/> Subject | 
+| Windows Updates | `$_.WindowsUpdates` | Caption<br/> CSName<br/> Description<br/> FixComments<br/> HotFixID<br/> InstallDate<br/> InstalledBy<br/> InstalledOn<br/> Name<br/> ServicePackInEffect<br/> Status |
