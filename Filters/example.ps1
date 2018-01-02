@@ -335,17 +335,32 @@ $Filter.PSObject.Properties | Sort -Property Name | %{
     
     try {
         # Get the section name and value
-        $SectionName = $_.Name;
+        $SectionName = $_.Name -split "_" | Select -Last 1;
         $SectionValue = $_.Value | Select -Property *;
 
         # Get the hostname for error writing and define the output file
         $HostName = $HostInformation.Win32_OperatingSystem.Hostname
-        $FilePath = (Resolve-Path $($MyInvocation.PSScriptRoot + "\..\")).Path + "Filtered-Windows-Audit-Data.xlsx";
+        $FilePath = "Filtered-Windows-Audit-Data.xlsx";
 
         # Export to File
         if ($SectionValue) {
             Write-ShellMessage -Message "Exporting '$SectionName' to '$FilePath' for host '$HostName'" -Type INFO;
-            Export-Excel -Path $FilePath -WorkSheetname $SectionName -TargetData $SectionValue -Append;
+            
+            # Ok we need to check if the file exists as we can't use the append switch on a fresh file
+            if (Test-Path $FilePath) {
+            
+                # Now we need to check whether the worksheet exists for the same reason
+                if ($(try {Import-Excel -Path $FilePath -WorksheetName $SectionName;$True} catch {$False})) {
+                    $SectionValue | Export-Excel -Path $FilePath -WorkSheetname $SectionName -Append;
+                }
+                else {
+                    $SectionValue | Export-Excel -Path $FilePath -WorkSheetname $SectionName;
+                }
+
+            }
+            else {
+                $SectionValue | Export-Excel -Path $FilePath -WorkSheetname $SectionName;
+            }
         }
         else {
             Write-ShellMessage -Message "Section '$SectionName' for host '$HostName' is null; skipping" -Type WARNING;
@@ -368,5 +383,3 @@ else {
     $FinalMessage = "Audit data compilation has completed successfully";
     Write-ShellMessage -Message $FinalMessage -Type SUCCESS;
 }
-
-Exit;
