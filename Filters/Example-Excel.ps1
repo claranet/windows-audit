@@ -17,13 +17,13 @@ $WarningTrigger = $False;
 
 # Import our functions from the lib module
 try {
-    Write-Host "Importing functions library: " -ForegroundColor Yellow -NoNewline;
+    Write-Host "Importing Audit module: " -ForegroundColor Yellow -NoNewline;
     Import-Module ".\Lib\Audit\Audit-Functions.psm1" -DisableNameChecking;
     Write-Host "Succeeded." -ForegroundColor Green;
 }
 catch {
     # Can't use Write-ShellMessage here
-    $Message = "There was a problem attempting to import the functions library: $($_.Exception.Message)";
+    $Message = "There was a problem attempting to import the Audit module: $($_.Exception.Message)";
     Write-Host $Message -ForegroundColor Red;
     Exit(1);
 }
