@@ -1101,5 +1101,5 @@ $AuditBlock
 $TimeBlock
 "@
 
-Set-Content ".\NetworkAuditStatistics.txt" -Value $FileStatusBlock;
+Set-Content ".\Audit-Statistics.txt" -Value $FileStatusBlock;
 }

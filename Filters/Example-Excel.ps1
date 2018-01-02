@@ -340,7 +340,7 @@ $Filter.PSObject.Properties | Sort -Property Name | %{
 
         # Get the hostname for error writing and define the output file
         $HostName = $HostInformation.Win32_OperatingSystem.Hostname
-        $FilePath = "Filtered-Windows-Audit-Data.xlsx";
+        $FilePath = "Filtered-Audit-Data.xlsx";
 
         # Export to File
         if ($SectionValue) {
