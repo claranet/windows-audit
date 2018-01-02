@@ -94,13 +94,13 @@ try {
         });
         "02_FirewallRules" = $($HostInformation.FirewallRules | %{
             [PSCustomObject]@{
-                "HostName"      = $HostInformation.Win32_OperatingSystem.Hostname;
-                "Name" = $_.Name
-                "Local Ports" = $_.LocalPorts
-                "Remote Ports" = $_.RemotePorts
-                "Local Addresses" = $_.LocalAddresses
+                "HostName"         = $HostInformation.Win32_OperatingSystem.Hostname;
+                "Name"             = $_.Name
+                "Local Ports"      = $_.LocalPorts
+                "Remote Ports"     = $_.RemotePorts
+                "Local Addresses"  = $_.LocalAddresses
                 "Remote Addresses" = $_.RemoteAddresses
-                "Direction" = $_.Direction;
+                "Direction"        = $_.Direction;
             }
         });
         "03_TLSCertificates" = $($HostInformation.TLSCertificates | ?{!$_.PSIsContainer} | %{

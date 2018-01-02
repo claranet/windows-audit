@@ -1,11 +1,13 @@
 Filters
 ---------
 
-Filters are a way of taking the original gathered data and presenting different elements in different ways. The example filter provided will output the below table of data, splitting out each section into an individual Excel worksheet.
+Filters are a way of taking the original gathered data and presenting different elements in different ways. The example filters provided will output the below table of data, splitting out each section into an individual Excel worksheet (or SQL table for the SQL version).
 
-The filter needs to be defined as a single `PSCustomObject` with named key value pairs indicating the name (key) of the section you wish to create, along with the actual content (value) of that section. If the value object is enumerable, you can use the subexpression `$( $subexpression )` syntax to enumerate the property into a pipeline and capture (or filter) the named values you wish to obtain from the object. You can see an example of this in action in the `.\Filters\Example.ps1` file.
+The filter needs to be defined as a single `PSCustomObject` with named key value pairs indicating the name (key) of the section you wish to create, along with the actual content (value) of that section. If the value object is enumerable, you can use the subexpression `$( $subexpression )` syntax to enumerate the property into a pipeline and capture (or filter) the named values you wish to obtain from the object. You can see an example of this in action in the `Example-SQL.ps1` and `Example-Excel.ps1` filters.
 
-The `$HostInformation` parameter that gets passede into the filter can be accessed using dot notation to obtain the properties you seek. For a full property map please see the [properties map]() below.
+The `$HostInformation` parameter that gets passede into the filter can be accessed using dot notation to obtain the properties you seek. For a full property map please see the [properties map](#full-property-map) below.
+
+_Note: For more efficient SQL joins, be sure to include the `MachineIdentifier` parameter in any custom filter you make when exporting to SQL. This is simply a GUID rather than text to join the tables on._
 
 ##### System Information (key:value)
 	- HostName
@@ -16,17 +18,20 @@ The `$HostInformation` parameter that gets passede into the filter can be access
 	- Region/Locale
 	- Timezone
 	- System Type
-	- Location
-	- WSUS Server
+	- Make
+	- Model
+	- Service Tag
+	- BIOS Info
+	- Asset Tag
 	- PowerShell Version
 	- .NET Version
 	- CPU
-	- CPU Use % (Total)
 	- Total Physical Memory
 	- Available Physical Memory
 	- Virtual Memory Max Size
 	- Virtual Memory Available
 	- Virtual Memory InUse
+	- Is Virtual Machine
 	
 ##### Network Interfaces (table)
 	- HostName
@@ -84,6 +89,7 @@ The `$HostInformation` parameter that gets passede into the filter can be access
 	- Shared Folder Path
 	- Shared Folder Name
 	- Shared Folder Description
+	- Shared Folder Permissions
 	- Mounted Drive Path
 	- Mounted Drive Letter
 	
@@ -93,7 +99,7 @@ The `$HostInformation` parameter that gets passede into the filter can be access
 	- Display Version
 	- Publisher
 	- Install Date
-	- Install Type
+	- Help Link
 	
 ##### Windows Features (table)
 	- HostName
@@ -111,6 +117,82 @@ The `$HostInformation` parameter that gets passede into the filter can be access
 	- Last Run Time
 	- Last Result
 
+##### USB Devices (table)
+	- HostName
+	- Name
+	- Caption
+	- Description
+	- Manufacturer
+	- Service
+	- Status
+
+##### Serial Devices (table)
+	- HostName
+	- Caption
+	- Name
+	- PNP Device ID
+	- Status
+
+##### IIS Information (table)
+	- HostName
+	- Site Name
+	- Bindings
+	- Physical Path
+	- Folder Dependencies (Experimental)
+	- SQL Dependencies (Experimental)
+	- Web Dependencies (Experimental)
+
+##### Database Information (table)
+	- HostName
+	- Instance Name
+	- Connection Identifier
+	- SQL Version
+	- Is Accessible
+	- DB Name
+	- DB Owner
+	- DB Created Date
+	- DB Compatibility Level
+	- DB ID
+	- DB Size
+	- DB Status
+	- DB Updateability
+	- DB User Access
+	- DB Recovery Mode
+	- DB Version
+	- DB Collation
+	- DB Sort Order
+	- DB Auto Create Statistics
+	- DB Auto Update Statistics
+
+##### Windows Updates (table)
+	- HostName
+	- Description
+	- Service Pack In Effect
+	- Fix Comments
+	- Installed On
+	- Caption
+	- Name
+	- Hotfix ID
+	- Status
+	- Install Date
+	- Install By
+
+##### Network Topology (table)
+	- HostName
+	- Protocol
+	- Local Address
+	- Local Port
+	- Remote Address
+	- Remote Port
+	- State
+	- Process ID
+	- Process Name
+	- Process Description
+	- Process Product
+	- Process File Version
+	- Process Exe Path
+	- Process Company
+
 Full property map
 ---------
 The script that gets executed on the named target will gather the following information:
@@ -120,36 +202,33 @@ Click on the WMI class name for a full list of methods and properties from the M
 
 | WMI Class  | HostInformation Property  |
 |---|---|
-| [Win32_OperatingSystem](https://msdn.microsoft.com/en-us/library/aa394239(v=vs.85).aspx) | `$_.OS` |
-| [Win32_ComputerSystem](https://msdn.microsoft.com/en-us/library/aa394102(v=vs.85).aspx) | `$_.SystemInfo.SystemInfo` |
-| [Win32_BIOS](https://msdn.microsoft.com/en-us/library/aa394077(v=vs.85).aspx) | `$_.SystemInfo.BIOS` |
-| [Win32_Processor](https://msdn.microsoft.com/en-us/library/aa394373(v=vs.85).aspx) | `$_.Compute` |
-| [Win32_PhysicalMemory](https://msdn.microsoft.com/en-us/library/aa394347(v=vs.85).aspx) | `$_.Memory.PhysicalMemory` |
-| [Win32_DiskDrive](https://msdn.microsoft.com/en-us/library/aa394132(v=vs.85).aspx) | `$_.Storage.PhysicalDisks` |
-| [Win32_LogicalDisk](https://msdn.microsoft.com/en-us/library/aa394173(v=vs.85).aspx) | `$_.Storage.LogicalDisks` |
-| [Win32_Volume](https://msdn.microsoft.com/en-us/library/aa394515(v=vs.85).aspx) | `$_.Storage.Volumes` |
-| [Win32_Share](https://msdn.microsoft.com/en-us/library/aa394435(v=vs.85).aspx) | `$_.Storage.SharedFolders` |
-| [Win32_MappedLogicalDisk](https://msdn.microsoft.com/en-us/library/aa394194(v=vs.85).aspx) | `$_.Storage.MountedDrives` |
-| [Win32_NetworkAdapterConfiguration](https://msdn.microsoft.com/en-us/library/aa394217(v=vs.85).aspx) | `$_.Networking.AdapterInformation` |
-| [Win32_USBControllerDevice](https://msdn.microsoft.com/en-us/library/aa394505(v=vs.85).aspx) | `$_.Peripherals.USBDevices` |
-| [Win32_SerialPort](https://msdn.microsoft.com/en-us/library/aa394413(v=vs.85).aspx) | `$_.Peripherals.SerialDevices` |
-| [Win32_Printer](https://msdn.microsoft.com/en-us/library/aa394363(v=vs.85).aspx) | `$_.Peripherals.Printers` |
-| [Win32_Service](https://msdn.microsoft.com/en-us/library/aa394418(v=vs.85).aspx) | `$_.WindowsServices` |
+| [Win32_OperatingSystem](https://msdn.microsoft.com/en-us/library/aa394239(v=vs.85).aspx) | `$_.Win32_OperatingSystem` |
+| [Win32_ComputerSystem](https://msdn.microsoft.com/en-us/library/aa394102(v=vs.85).aspx) | `$_.Win32_ComputerSystem` |
+| [Win32_BIOS](https://msdn.microsoft.com/en-us/library/aa394077(v=vs.85).aspx) | `$_.Win32_BIOS` |
+| [Win32_Processor](https://msdn.microsoft.com/en-us/library/aa394373(v=vs.85).aspx) | `$_.Win32_Processor` |
+| [Win32_PhysicalMemory](https://msdn.microsoft.com/en-us/library/aa394347(v=vs.85).aspx) | `$_.Win32_PhysicalMemory` |
+| [Win32_DiskDrive](https://msdn.microsoft.com/en-us/library/aa394132(v=vs.85).aspx) | `$_.Win32_DiskDrive` |
+| [Win32_LogicalDisk](https://msdn.microsoft.com/en-us/library/aa394173(v=vs.85).aspx) | `$_.Win32_LogicalDisk` |
+| [Win32_Volume](https://msdn.microsoft.com/en-us/library/aa394515(v=vs.85).aspx) | `$_.Win32_Volume` |
+| [Win32_Share](https://msdn.microsoft.com/en-us/library/aa394435(v=vs.85).aspx) | `$_.Win32_Share` |
+| [Win32_MappedLogicalDisk](https://msdn.microsoft.com/en-us/library/aa394194(v=vs.85).aspx) | `$_.Win32_MappedLogicalDisk` |
+| [Win32_NetworkAdapterConfiguration](https://msdn.microsoft.com/en-us/library/aa394217(v=vs.85).aspx) | `$_.Win32_NetworkAdapterConfiguration` |
+| [Win32_USBControllerDevice](https://msdn.microsoft.com/en-us/library/aa394505(v=vs.85).aspx) | `$_.Win32_USBControllerDevice` |
+| [Win32_PNPEntity](https://msdn.microsoft.com/en-us/library/aa394353%28v=vs.85%29.aspx) | `$_.Win32_PNPEntity` |
+| [Win32_Printer](https://msdn.microsoft.com/en-us/library/aa394363(v=vs.85).aspx) | `$_.Win32_Printer` |
+| [Win32_Service](https://msdn.microsoft.com/en-us/library/aa394418(v=vs.85).aspx) | `$_.Win32_Service` |
 
-_(Note: the `Win32_USBControllerDevice` class is enumerated by the `[Wmi]$_.Dependent` property in order to obtain the connected devices. If you are using certain types of USB hub to chain multiple devices your output may not be captured. In this circumstance you can modify line `#286` in the `.\Scripts\Audit-Scriptblock.ps1` file to further enumerate this.)_
+_(Note: the `Win32_USBControllerDevice` class is enumerated by the `[Wmi]$_.Dependent` property in order to obtain the connected devices. If you are using certain types of USB hub to chain multiple devices your output may not be captured. In this circumstance you can modify line `#13` in the `Win32_USBControllerDevice.ps1` file to further enumerate this.)_
 
 _(Note 2: the `Win32_Share` class also has an additional `$_.SharePermissions` property added, which you can use to view the share permissions.)_
 
 #### Other Available Properties
-_(Note: For IIS versions 5 and 6, use the `$_.IISConfigurationv5and6.*` property set as these are located in a different object.)_
 
 | Property Description  | HostInformation Property  | Contains |
 |---|---|---|
 | Hostname | `$_.SystemInfo.HostName` | String |
 | Is Virtual Machine | `$_.SystemInfo.IsVirtualMachine` | String |
 | Machine Type | `$_.SystemInfo.MachineType` | String |
-| Location | `$_.SystemInfo.Location` | String |
-| CPU % Total Use | `$_.SystemInfo.CPUPercentInUse` | String |
 | Total Physical Memory | `$_.Memory.WindowsMemory.TotalPhysicalMemory` | String |
 | Available Physical Memory | `$_.Memory.WindowsMemory.AvailablePhysicalMemory` | String |
 | Virtual Memory Max Size | `$_.Memory.WindowsMemory.VirtualMemoryMaxSize` | String |
