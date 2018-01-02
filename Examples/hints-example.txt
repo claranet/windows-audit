@@ -1,0 +1,13 @@
+# You can use comments in nearly any form as only lines starting with > and < are picked up.
+
+# These are some DNS names included with the > operator.
+>dev.mydomain.com
+>dev2.mydomain.com
+
+# This is a CIDR block included with the > operator, it will be expanded when the audit begins.
+>192.168.0.0/16
+
+# These are some exclusions, denoted with the < operator. The first IP is actually part of the 
+# above CIDR block but will be excluded because of this entry.
+<192.168.1.114
+<DEVSERVER

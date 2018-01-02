@@ -1,11 +1,11 @@
-[Cmdletbinding(DefaultParameterSetName="Excel")]
+[Cmdletbinding(DefaultParameterSetName='Excel')]
 Param(
     # Compile using Excel or SQL
     [Parameter(Mandatory=$True)]
     [Parameter(ParameterSetName="Excel")]
     [Parameter(ParameterSetName="SQL")]
     [ValidateSet("Excel","SQL")]
-    [PSCredential]$CompilationType,
+    [String]$CompilationType,
 
     # The name of the filter to use when compiling
     [Parameter(Mandatory=$True)]
@@ -15,14 +15,12 @@ Param(
     [String]$Filter,
 
     # SQL Server\instance name
-    [Parameter(Mandatory=$True)]
-    [Parameter(ParameterSetName="SQL")]
+    [Parameter(Mandatory=$True,ParameterSetName="SQL")]
     [ValidateNotNullOrEmpty()]
     [String]$SQLServerName,
 
     # SQL database name
-    [Parameter(Mandatory=$True)]
-    [Parameter(ParameterSetName="SQL")]
+    [Parameter(Mandatory=$True,ParameterSetName="SQL")]
     [ValidateNotNullOrEmpty()]
     [String]$SQDatabaseName
 )
@@ -76,8 +74,15 @@ catch {
     Exit(1);
 }
 
+# Declare a ticker and start time so we can estimate how long the operation will take
+$Ticker    = 0;
+$StartTime = Get-Date
+
 # Enumerate the collection
 $CliXmlFilesToProcess | %{
+    # Increment the ticker so we know how many we've processed so far
+    $Ticker++;
+
     # Get the filename and let the user know what we're doing
     $FileName = $_.Name;
     Write-ShellMessage -Message "Processing file '$FileName'" -Type INFO;
@@ -94,6 +99,20 @@ $CliXmlFilesToProcess | %{
             & $FilterPath -HostInformation $HostInformation -SQLServerName $SQLServerName -SQLDatabaseName $SQLDatabaseName;
         }
     }
+
+    # Work out remaining time
+    $SecondsElapsed   = ((Get-Date) - $StartTime).TotalSeconds;
+    $SecondsRemaining = ($SecondsElapsed / ($Ticker / $CliXmlFilesToProcess.Count)) - $SecondsElapsed;
+
+    # Write progress so we can see the top level info
+    $ProgressParams = @{
+        ID                 = 10;
+        Activity           = "Compiling audit results";
+        Status             = "Compiled $Ticker files out of $($CliXmlFilesToProcess.Count)";
+        PercentComplete    = ($Ticker / $CliXmlFilesToProcess.Count) * 100;
+        SecondsRemaining   = $SecondsRemaining;
+    }
+    Write-Progress @ProgressParams;
 }
 
 #---------[ Fin ]---------

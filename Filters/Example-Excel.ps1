@@ -351,15 +351,15 @@ $Filter.PSObject.Properties | Sort -Property Name | %{
             
                 # Now we need to check whether the worksheet exists for the same reason
                 if ($(try {Import-Excel -Path $FilePath -WorksheetName $SectionName;$True} catch {$False})) {
-                    $SectionValue | Export-Excel -Path $FilePath -WorkSheetname $SectionName -Append;
+                    $SectionValue | Export-Excel -Path $FilePath -WorkSheetname $SectionName -Append -BoldTopRow -AutoFilter -FreezeTopRow -AutoSize;
                 }
                 else {
-                    $SectionValue | Export-Excel -Path $FilePath -WorkSheetname $SectionName;
+                    $SectionValue | Export-Excel -Path $FilePath -WorkSheetname $SectionName -BoldTopRow -AutoFilter -FreezeTopRow -AutoSize;
                 }
 
             }
             else {
-                $SectionValue | Export-Excel -Path $FilePath -WorkSheetname $SectionName;
+                $SectionValue | Export-Excel -Path $FilePath -WorkSheetname $SectionName -BoldTopRow -AutoFilter -FreezeTopRow -AutoSize;
             }
         }
         else {
