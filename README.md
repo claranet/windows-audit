@@ -26,7 +26,7 @@ CIDR blocks will be expanded and added to the list of nodes to scan, in exactly 
 The final stage of discovering nodes from the hints file is to apply the exclusions, this ensures that all CIDR blocks are fully expanded before deciding which nodes should/shouldn't be included.
 
 ##### Scripts
-There are a variety of sub scripts and modules however for simplicity the execution has been consolodated into two top level scripts; `Get-AuditData.ps1` and `Compile-AuditData.ps1`.
+There are a variety of sub scripts and modules however for simplicity the execution has been consolodated into two top level scripts; `Get-AuditData.ps1` and `Compile-AuditData.ps1` (run in that order to gather => compile).
 
 ##### Get-AuditData Parameters
 | Parameter | Purpose | Type | Default/Mandatory |
@@ -36,7 +36,7 @@ There are a variety of sub scripts and modules however for simplicity the execut
 | `ThreadCount` | Number of threads to use for the probe/audit process | Int | `64` |
 
 ##### Get-AuditData Example
-This example will invoke an audit data gathering on the nodes specified in the Node Hints file using the $MyPSCredential credential, and a custom thread count of 128.
+This example will invoke an audit data gathering on the nodes specified in the Node Hints file using the $MyPSCredential credential, and a custom thread count of 128. You will need to experiment with the `ThreadCount` parameter and find the sweet spot for the machine you're running the audit from.
 
 ```PowerShell
 .\Get-AuditData.ps1 -PSCredential $MyPSCredential -NodeHintsFile ".\nodehints.txt" -ThreadCount 128;
