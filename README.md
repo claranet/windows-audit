@@ -19,7 +19,7 @@ Usage
 ##### Node Hints File
 Before you begin your audit you must create a _Node Hints_ file, an example of this file can be found in the Examples directory. You can use NetBIOS and DNS names, as well as IP addresses and CIDR blocks to express the list of machines for your audit.
 
-Each line must begin with an include `>` or exclude `<` operator followed immediately by the NetBIOS|DNS|IP|CIDR, this allows you the flexibility of defining a range using a CIDR block yet exclude specific IP addresses from that range easily. Any other line that does not start with one of these operators will be ignored as a comment.
+Each line must begin with an include `>` or exclude `<` operator followed immediately by the NetBIOS|DNS|IP|CIDR, this allows you the flexibility of defining a range using a CIDR block yet exclude specific IP addresses (or even other CIDR blocks) from that range easily. Any other line that does not start with one of these operators will be ignored as a comment.
 
 CIDR blocks will be expanded and added to the list of nodes to scan, in exactly the same way as if you had put in a line for each IP in the range. This may take some time depending on the complexity of the ranges you have specified, however there is a progress bar to tell you what's happening every step of the way.
 

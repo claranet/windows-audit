@@ -5,6 +5,8 @@ Filters are a way of taking the original gathered data and presenting different 
 
 The filter needs to be defined as a single `PSCustomObject` with named key value pairs indicating the name (key) of the section you wish to create, along with the actual content (value) of that section. If the value object is enumerable, you can use the subexpression `$( $subexpression )` syntax to enumerate the property into a pipeline and capture (or filter) the named values you wish to obtain from the object. You can see an example of this in action in the `Example-SQL.ps1` and `Example-Excel.ps1` filters.
 
+Note, your filter _must_ be named in this format; `name-type.ps1` e.g. `Myfilter-SQL.ps1` or `Myfilter-Excel.ps1`. When you reference it using the `Compile-AuditData` script, simply specify the `-Filter` parameter as `Myfilter`, and the `-CompilationType` as `SQL` (or `Excel`).
+
 The `$HostInformation` parameter that gets passede into the filter can be accessed using dot notation to obtain the properties you seek. For a full property map please see the [properties map](#full-property-map) below.
 
 Example Filter
@@ -244,3 +246,25 @@ Click on the WMI class name for a full list of properties from the MSDN.
 | Time Configuration | `$_.Time` | AnnounceFlags<br/> EventLogs<br/> FrequencyCorrectRate<br/> HoldPeriod<br/> LargePhaseOffset<br/> LocalClockDispersion<br/> MaxAllowedPhaseOffset<br/> MaxNegPhaseCorrection<br/> MaxPollInterval<br/> PaxPosPhaseCorrection<br/> MinPollInterval<br/> PhaseCorrectRate<br/> PollAdjustFactor<br/> Server<br/> SpikeWatchPeriod<br/> TimeJumpAuditOffset<br/> Type<br/> UpdateInterval |
 | TLS Certificates | `$_.TLSCertificates` | EnhancedKeyUsageList<br/> DnsNameList<br/> SendAsTrustedIssuer<br/> EnrollmentPolicyEndPoint<br/> EnrollmenterverEndPoint<br/> PolicyId<br/> Archived<br/> Extension<br/> FriendlyName<br/> IssuerName<br/> NotAfter<br/> NotBefore<br/> HasPrivateKey<br/> PublicKey<br/> SerialNumber<br/> SubjectName<br/> SignatureAlgorithm<br/> Thumbprint<br/> Version<br/> Handle<br/> Issuer<br/> Subject | 
 | Windows Updates | `$_.WindowsUpdates` | Caption<br/> CSName<br/> Description<br/> FixComments<br/> HotFixID<br/> InstallDate<br/> InstalledBy<br/> InstalledOn<br/> Name<br/> ServicePackInEffect<br/> Status |
+
+Best practice
+---------
+#### Bloat
+Try not to include the full output from any cmdlet as the return result. This adds unnecessary bloat e.g.;
+```PowerShell
+Get-WmiObject -Class "Win32_ComputerSystem";
+```
+Will generate an enormous dataset because it contains all the metadata and methods et al. You can filter this down by explicitly casting to a `PSCustomObject` using a pipeline e.g.
+```PowerShell
+Get-WmiObject -Class "Win32_ComputerSystem" | Select -Property * | %{
+	[PSCustomObject]@{
+		MachineIdentifier = $ID;
+		MyNamedValue      = $_.SomeProperty;
+		MyOtherNamedValue = $_.SomeOtherProperty;
+	}
+}
+```
+This also has the added bonus of not running into any type related issues. For example the `WebAdministration` IIS PowerShell module uses entirely custom types that can't be deserialised on a machine that does not have IIS/That module installed. By casting to a `PSCustomObject`, you bypass this issue entirely.
+
+#### MachineIdentifier
+All collectors use a parameter called `$ID` which is passed from the calling client. It's a GUID which is generated once on the calling client to uniquely identify the machine that's being scanned. All rows from all collectors contain this column providing a guarantee that results won't get mixed up while you are processing them. Be sure to include this property in any Filter you make.
