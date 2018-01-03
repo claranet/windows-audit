@@ -75,7 +75,7 @@ Function Is-Ipv4Address {
     }
 }
 
-# Returns a bool indicating whether the supplied string is an IPv4 address
+# Returns a bool indicating whether the supplied string is an IPv6 address
 Function Is-Ipv6Address {
     [Cmdletbinding()]
     Param(
@@ -187,56 +187,164 @@ Function Is-HyperThreadingEnabled {
 
 # Invokes a PowerShell-over-PSExec command
 Function Invoke-PSExecCommand {
-    [CmdletBinding()]
+    [Cmdletbinding()]
     Param(
         [Parameter(Mandatory=$True)]
         [ValidateNotNullOrEmpty()]
         [String]$ComputerName,
         [Parameter(Mandatory=$True)]
         [ValidateNotNullOrEmpty()]
-        [String]$Script,
-        [Parameter(Mandatory=$false)]
+        [String]$ScriptFile,
+        [Parameter(Mandatory=$True)]
         [ValidateNotNullOrEmpty()]
-        [Int]$SerialisationDepth = 5
+        [System.Management.Automation.PSCredential]$PSCredential
     )
 
-    # Ok we need to get an object containing the properties we want
-    $ScriptFileObject = Get-Item $Script;
+    try {
+
+        # Get the username and password from the PSCredential
+        $Username = $PSCredential.UserName;
+        $Password = $PSCredential.GetNetworkCredential().Password;
+
+        # Check for inescapable characters
+        """","'","&","^" | %{
+            if ($Password.Contains($_)) {
+                throw 'Your password contains the "'+$_+'" character which is incompatible with the escaping of PSExec, please change your password or use a different credential';
+            }
+        }
+
+        # Get the contents of the script
+        $Content = Get-Content $ScriptFile;
+
+        # Trim out the fat
+        $Content = $Content | ?{$_ -notmatch '#(.*)' -and ![String]::IsNullOrEmpty($_)} | Out-String;
+
+        # Encode it to a base 64 string
+        $Bytes = [System.Text.Encoding]::Unicode.GetBytes($Content);
+        $Encoded = [Convert]::ToBase64String($Bytes);
+
+        # Generate our temp filename
+        $FileName = [Guid]::NewGuid().Guid + ".txt";
+
+        # Define the chunk pointer and size we want to transmit
+        $ChunkPointer = 0;
+        $ChunkSize = 210;
+
+        # Loop over the encoded string and chunk it
+        While ($ChunkPointer -le ($Encoded.Length-$ChunkSize)) {
+
+            # Get the chunk we want to transmit
+            $Chunk = $Encoded.Substring($ChunkPointer,$ChunkSize);
+
+            # Build the command
+            $Local = "echo $Chunk >> $Filename";
+            $Cmd = 'cmd /c psexec -accepteula -nobanner \\{0} -u {1} -p """{2}""" cmd /c "{3}" --% 2>&1' -f $ComputerName,$Username,$Password,$Local;
+
+            # Transmit the chunk
+            $Row = Invoke-Expression $Cmd | ?{$_ -like "*error*"};
+            if ($Row -notlike "*error code 0*") {
+                throw $Row;
+            }
+
+            # Increment the chunk pointer
+            $ChunkPointer += $ChunkSize;
     
-    # Then tune a few properties we need
-    $ScriptPath = $ScriptFileObject.Directory.FullName;
-    $ShareName  = ($ScriptFileObject.BaseName -replace '[^a-zA-Z]','') + '$';
-    $ScriptFile = $ScriptFileObject.Name;
+            # Progress meter
+            Write-Progress `
+                -Activity "Transferring '$ScriptFile' over PSExec" `
+                -Status "Processing chunk $($ChunkPointer/$ChunkSize) of $([Math]::Ceiling($Encoded.Length/$ChunkSize))" `
+                -PercentComplete $(((($ChunkPointer/$ChunkSize)/($Encoded.Length/$ChunkSize)))*100);
 
-    # Then we need to share the script path with the script name we parsed
-    [Void](New-SMBShare -Name $ShareName -Path $ScriptPath -FullAccess "Everyone");
+        }
 
-    # Get the command built; Unrestricted policy is for PSv2 compatibility, the scope is this execution only
-    $Command = @(
-        'Set-ExecutionPolicy Unrestricted -ErrorAction SilentlyContinue;',
-        $('$ScriptBlock = [ScriptBlock]::Create($(Get-Content "\\{0}\{1}\{2}" | Out-String));' -f $env:COMPUTERNAME,$ShareName,$ScriptFile),
-        '$AuditResult = $ScriptBlock.Invoke();',
-        'return [System.Management.Automation.PSSerializer]::Serialize($AuditResult,5);'
-    ) -Join "";
+        # Grab the last portion and transmit it
+        Write-Progress -Activity "Transferring '$ScriptFile' over PSExec" -Status "Processing final chunk";
+        $Chunk = $Encoded.Substring($ChunkPointer);
+        $Local = "echo $Chunk >> $Filename";
+        $Cmd = 'cmd /c psexec -accepteula -nobanner \\{0} -u {1} -p """{2}""" cmd /c "{3}" --% 2>&1' -f $ComputerName,$Username,$Password,$Local;
+        $Row = Invoke-Expression $Cmd | ?{$_ -like "*error*"};
+        if ($Row -notlike "*error code 0*") {
+            throw $Row;
+        }
+        Write-Progress -Activity "Transferring '$ScriptFile' over PSExec" -Completed;
 
-    # And get the expression ready
-    $Expression = "psexec \\$ComputerName  cmd /c powershell -Command $Command";
-    
-    # Invoke the PSExec command
-    $RawOutput = Invoke-Expression $Expression;
+        # Now we want to re-assemble the file
+        Write-ShellMessage -Message "Assembling script file" -Type DEBUG;
+        $Assemble = '$C=Get-Content {0}|Out-String;$B=[Convert]::FromBase64String($C);$S=[System.Text.Encoding]::Unicode.GetString($B);Set-Content Audit-ScriptBlock.ps1 -value $S' -f $FileName;
+        $PSExec = "psexec -accepteula -nobanner \\$ComputerName -u $Username -p """"""$Password"""""" PowerShell -ExecutionPolicy Unrestricted -Command '$Assemble'";
+        $Row = Invoke-Expression $("cmd /c $PSExec --% 2>&1") | ?{$_ -like "*error*"};
+        if ($Row -notlike "*error code 0*") {
+            throw $Row;
+        }
 
-    # Clean up the output
-    $RawOutput = $RawOutput -replace "PsExec v(.*) - Execute processes remotely","";
-    $RawOutput = $RawOutput -replace "Copyright \(C\) (.*) Mark Russinovich","";
-    $RawOutput = $RawOutput -replace "Sysinternals - www.sysinternals.com","";
-    $RawOutput = $RawOutput | ?{![String]::IsNullOrEmpty($_)};
-    [PSCustomObject]$Output = [System.Management.Automation.PSSerializer]::Deserialize($RawOutput);
+        # Invoke the script
+        Write-ShellMessage -Message "Executing script file" -Type DEBUG;
+        $Cmd = 'cmd /c psexec -accepteula -nobanner \\{0} -u {1} -p """{2}""" PowerShell -ExecutionPolicy Unrestricted -File Audit-ScriptBlock.ps1 -X --% 2>&1' -f $ComputerName,$Username,$Password;
+        $Result = Invoke-Expression $Cmd;
+        if ($Row -notlike "*error code 0*") {
+            throw $Row;
+        }
 
-    # Remove the share we created before exec()
-    [Void](Remove-SMBShare -Name $ShareName -Force);
+        # Now delete the trash
+        Write-ShellMessage -Message "Cleaning up" -Type DEBUG;
+        $Cmd = 'cmd /c psexec -accepteula -nobanner \\{0} -u {1} -p """{2}""" cmd /c "del /f Audit-ScriptBlock.ps1,{3}" --% 2>&1' -f $ComputerName,$Username,$Password,$FileName;
+        $Row = Invoke-Expression $Cmd | ?{$_ -like "*error*"};
+        if ($Row -notlike "*error code 0*") {
+            throw $Row;
+        }
 
-    # And return the goods
-    return $Output;
+        # Clean the result
+        Write-ShellMessage -Message "Readying results" -Type DEBUG;
+        $Result = $($Result | ?{`
+            $_ -and `
+            $_ -notlike "Connecting to *" -and `
+            $_ -notlike "Starting PSEXESVC service*" -and `
+            $_ -notlike "Connecting with PsExec *" -and `
+            $_ -notlike "Starting PowerShell on *" -and `
+            $_ -notlike "PowerShell exited on *"`
+        }) -join "`r`n";
+
+        # Check here see if we got the XML
+        if ($Result.Contains("<Objs")) {  
+            $Output = $Result.Substring(0,$Result.IndexOf("<Objs"));
+            $XML = $Result.Replace($Output,"");
+        } 
+        else {
+            $Output = $Result;
+        }
+
+        # Write the captured output
+        $Output.Split("`r`n") | ?{$_} | %{
+            # Work out what colour it should be
+            Switch -Regex ($_) {
+                "DEBUG\]\:"   {$Col = "Magenta"};
+                "INFO\]\:"    {$Col = "Cyan"};
+                "WARNING\]\:" {$Col = "Yellow"};
+                "SUCCESS\]\:" {$Col = "Green"};
+                "ERROR\]\:"   {$Col = "Red"};
+                default       {$Col = "White"};
+            }
+            # Write it
+            Write-Host $_ -ForegroundColor $Col;
+        }
+
+        # Check if we got the XML
+        if ($XML) {
+            # Deserialise the info
+            $HostInformation = [System.Management.Automation.PSSerializer]::Deserialize($XML);
+            
+            # And return the host information
+            return $HostInformation;
+        }
+        else {
+            throw "Unable to find return XML in PSExec output.";
+        }
+
+    }
+    catch {
+        Write-ShellMessage -Message "Error running script '$ScriptFile' on server '$ComputerName': $($_ -join " ")" -Type ERROR;
+        Exit(1);
+    }
 }
 
 # Writes pretty log messages
@@ -276,4 +384,96 @@ Function Write-ShellMessage {
 
     # And write out
     Write-Host $Output -ForegroundColor $C;
+}
+
+# Writes error log messages to file
+Function Write-ErrorLog {
+    [Cmdletbinding()]
+    Param(
+        [Parameter(Mandatory=$True)]
+        [ValidateNotNullOrEmpty()]
+        [String]$Hostname,
+        [Parameter(Mandatory=$True)]
+        [ValidateNotNullOrEmpty()]
+        [String]$EventName,
+        [Parameter(Mandatory=$False)]
+        [ValidateNotNullOrEmpty()]
+        [String]$Exception,
+        [Parameter(Mandatory=$False)]
+        [ValidateNotNullOrEmpty()]
+        [String]$Sanitise
+    )
+
+    # Get a datestamp sorted
+    $DateStamp = Get-Date -Format "dd/MM/yy HH:mm:ss";
+
+    # Build our message output
+    $Output = [String]::Format("[{0}] [{1}] [{2}]: {3}",$DateStamp,$HostName,$EventName,$Exception);
+
+    # Quick cleanup
+    $Sanitise | %{
+        $Output = $Output.Replace($_,"******");
+    }
+    
+    # Check if our errors file exists and create if needed
+    $ErrorsFile = ".\errors.log";
+    if (!(Test-Path $ErrorsFile)) {
+        [Void](New-Item $ErrorsFile -ItemType File);
+    }
+
+    # Add the content to the file
+    Add-Content -Path $ErrorsFile -Value $Output;
+}
+
+# Tests a remote connection and returns the available connection method
+Function Test-RemoteConnection {
+    [Cmdletbinding()]
+    Param(
+        [Parameter(Mandatory=$True)]
+        [ValidateNotNullOrEmpty()]
+        [String]$ComputerName,
+        [Parameter(Mandatory=$True)]
+        [ValidateNotNullOrEmpty()]
+        [System.Management.Automation.PSCredential]$PSCredential
+    )
+
+    # Try WinRM connection as this is preferred
+    if (Test-WSMan -ComputerName $ComputerName -Credential $PSCredential -Authentication Default -ErrorAction SilentlyContinue) {
+        return "WinRM";
+    }
+
+    <#
+    # Get the standard creds for PSExec in scope
+    $Username = $PSCredential.UserName;
+    $Password = $PSCredential.GetNetworkCredential().Password;
+
+    # Check for inescapable characters
+    """","'","&","^" | %{
+        if ($Password.Contains($_)) {
+            throw 'Your password contains the "'+$_+'" character which is incompatible with the escaping of PSExec, please change your password or use a different credential';
+        }
+    }
+
+    # PSExec, fallback connection test
+    $Cmd = 'cmd /c psexec \\{0} -u {1} -p """{2}""" /accepteula cmd /c echo connectionsuccessfulmsg --% 2>&1' -f $ComputerName,$Username,$Password;
+    $PSExecResult = Invoke-Expression $Cmd;
+
+    if (($PSExecResult -Join " ").Contains("connectionsuccessfulmsg")) {
+        # Let's check to see if powershell works
+        $Cmd = 'cmd /c psexec \\{0} -u {1} -p """{2}""" /accepteula powershell -ExecutionPolicy unrestricted -Command "return ""pshellsuccess""" --% 2>&1' -f $ComputerName,$Username,$Password;
+        $PSResult = Invoke-Expression $Cmd;
+
+        if (($PSResult -Join " ").Contains("pshellsuccess")) {
+            return "PSExec";
+        }
+        else {
+            throw "The machine '$ComputerName' has an issue starting powershell, please correct this before trying to audit this machine. Stack: $($PSResult -join " ")"
+            return;
+        }
+    }
+    #>
+
+    # No remote connectivity
+    $ErrorMessage = "The machine '$ComputerName' is not responding on WinRM. Please enable WinRM on the target machine and try again";
+    throw [System.PlatformNotSupportedException] $ErrorMessage;
 }

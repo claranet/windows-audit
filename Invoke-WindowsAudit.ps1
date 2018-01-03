@@ -17,36 +17,18 @@
     provided; '.\Filters\Example.ps1'.
 
     .PARAMETER InputFile [String]
-    The path to a Pipe Separated Values file which will be parsed for target 
-    information on what instances to harvest audit data from. The per-line 
-    format should be:
-    
-        (hostname|ip):(port)|(protocol)
-    
-    An example of this file can be found here `..\Examples\Computer-List-Example.psv`.
+    The path to a file which will be parsed for target information on which 
+    instances to harvest audit data from. One computer name or IP address per
+    line.
 
     .PARAMETER Computers [String[]]
-    String array of computers to run this script on. If the computer value is 
-    a `host:port` or `ip:port` combination the specified port will be used for 
-    WinRM (only).
-
-    .PARAMETER Protocol [String: WinRM,PSExec]
-    The protocol to use for the target computers specified in the `$Computers` 
-    parameter. Valid options are `WinRM`|`PSExec` defaulting to `WinRM` if not 
-    specified.
+    String array of computers to run this script on. Used mutually exclusively
+    with InputFile as a shell-method of supplying instances to target.
 
     .PARAMETER PSCredential [PSCredential]
     PSCredential that will be used for WinRM communications. Must be valid on 
     the machines you're trying to connect to, defaults to the current user 
     identity.
-
-    .PARAMETER SerialisationDepth [Int: 2..8]
-    Override value for the serialisation depth to use when this script is using 
-    the `System.Management.Automation.PSSerializer` class. Defaults to `5` and 
-    range is limited to `2..8`; as anything less than `2` is useless, anything 
-    greater than `8` will generate a _very_ large (multi-gb) file and probably 
-    crash the targeted machine. Tweak this value only if the data you want is 
-    nested so low in the dataset it's not being enumerated in the output.
 
     .PARAMETER CompileOnly [Switch]
     This switch when present tells the script to do a compilation of the data
@@ -64,31 +46,26 @@
 
     .EXAMPLE
     .\Invoke-WindowsAudit.ps1 `
-            -InputFile ".\Input\MyComputerList.psv" `
+            -InputFile ".\Input\MyComputerList.txt" `
             -PSCredential $MyPSCredential `
             -Compile `
             -Filter "Example";
 
-    This will invoke an audit data gathering on the computers specified in the MyComputerList.psv
-    file, using the $MyPSCredential credential over machines targeted with WinRM, will then
-    compile the data into an Excel spreadsheet using the Example filter.
+    This will invoke an audit data gathering on the computers specified in the 
+    MyComputerList.txt file using the $MyPSCredential credential, and then compile 
+    the data into an Excel spreadsheet using the Example filter.
 
     .EXAMPLE
-    .\Invoke-WindowsAudit.ps1 `
-            -Computers "dev-test-01","dev-test-02" `
-            -Protocol PSExec;
+    .\Invoke-WindowsAudit.ps1 -Computers "dev-test-01","dev-test-02" -PSCredential $MyPSCredential;
 
     This will invoke an audit data gathering on the computers specified in the Computers
     parameter using the PSExec protocol. No further processing will take place after the data
     has been gathered.
 
     .EXAMPLE
-    .\Invoke-WindowsAudit.ps1 `
-            -CompileOnly `
-            -Filter "Example";
+    .\Invoke-WindowsAudit.ps1 -CompileOnly -Filter "Example";
 
     This will invoke a compilation of cached data using the supplied filter.
-
 #>
 
 [CmdletBinding(DefaultParameterSetName='InputFile')]
@@ -103,26 +80,12 @@ Param(
     [ValidateNotNullOrEmpty()]
     [String[]]$Computers,
 
-    # Protocol to use for connecting to the target machine
-    [Parameter(Mandatory=$False)]
-    [Parameter(ParameterSetName="InputFile")]
-    [Parameter(ParameterSetName="ComputerList")]
-    [ValidateSet("WinRM","PSExec")]
-    [String]$Protocol = "WinRM",
-
     # PSCredential that will be used for WinRM to connect to the target machines
-    [Parameter(Mandatory=$False)]
+    [Parameter(Mandatory=$True)]
     [Parameter(ParameterSetName="InputFile")]
     [Parameter(ParameterSetName="ComputerList")]
     [ValidateNotNullOrEmpty()]
     [PSCredential]$PSCredential,
-
-    # Override for the ExportDepth to CLI XML
-    [Parameter(Mandatory=$False)]
-    [Parameter(ParameterSetName="InputFile")]
-    [Parameter(ParameterSetName="ComputerList")]
-    [ValidateRange(2,8)]
-    [Int]$SerialisationDepth = 5,
 
     # This switch tells the script to only do the compile phase
     [Parameter(Mandatory=$False)]
@@ -144,20 +107,31 @@ Param(
     [String]$Filter
 )
 
+# Start transcript
+$DateStamp = Get-Date -Format "ddMMyy_HHmmss";
+$Transcriptfile = ".\Windows-Audit-Transcript-$env:username-$DateStamp.log";
+[Void](Start-Transcript $Transcriptfile);
+
 # Run the gather phase if required
 if (!($CompileOnly.IsPresent)) {
     .\Scripts\Get-WindowsAuditData.ps1 `
                             -InputFile $InputFile `
                             -Computers $Computers `
-                            -Protocol $Protocol `
-                            -PSCredential $PSCredential `
-                            -SerialisationDepth $SerialisationDepth;
+                            -PSCredential $PSCredential;
 }
 
 # Run the compilation if required
 if ($Compile.IsPresent -or $CompileOnly.IsPresent) {
     .\Scripts\Compile-WindowsAuditData.ps1 -Filter $Filter;
 }
+
+# Stop transcript
+[Void](Stop-Transcript);
+
+# Cleanup transcript
+$TranscriptContent = Get-Content $TranscriptFile | Out-String;
+$TranscriptContent = $TranscriptContent.Replace($($PSCredential.GetNetworkCredential().Password),"*****");
+Set-Content -Path $Transcriptfile -Value $TranscriptContent;
 
 # Fin
 Exit;

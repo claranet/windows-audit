@@ -246,6 +246,9 @@ $Filter.PSObject.Properties | Sort -Property Name | %{
         # Write out and set our warning trigger
         Write-ShellMessage -Message "There was an error attempting to compile data for '$Hostname' and write it to disk" -Type ERROR -ErrorRecord $_;
         $WarningTrigger = $True;
+
+        # Write to error log file
+        Write-ErrorLog -HostName $HostName -EventName "Compilation" -Exception $($_.Exception.Message);
     }
 }
 

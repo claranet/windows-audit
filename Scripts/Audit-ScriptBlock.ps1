@@ -1,3 +1,6 @@
+# The -X switch governs how this scriptblock returns data, Used for PSExec return only.
+Param([Switch]$X)
+
 #---------[ Declarations ]---------
 
 # EAP to stop so we can trap errors in catch blocks
@@ -5,6 +8,10 @@ $ErrorActionPreference = "Stop";
 
 # Get our return object sorted out
 $HostInformation = New-Object PSCustomObject;
+
+# Get the execution policy value and set to unrestructed
+$ExecutionPolicy = Get-ExecutionPolicy;
+Set-ExecutionPolicy Unrestricted -Force;
 
 #---------[ Functions ]---------
 
@@ -274,6 +281,51 @@ Function Invoke-SQLQuery {
     return $Datatable;
 }
 
+# Gets applications list from registry using the .NET method
+# Get-ItemProperty fails when certain characters are in the key names
+Function Get-RegistryApplications {
+    [Cmdletbinding()]
+    Param(
+        [Parameter(Mandatory=$True)]
+        [ValidateSet("Registry32","Registry64")]
+        [String]$RegistryView
+    )
+
+    # Let's work out whether we're 32 or 64
+    if ($RegistryView -eq "Registry32") {
+        $Path = "Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall";
+    }
+    else {
+        $Path = "Software\Microsoft\Windows\CurrentVersion\Uninstall";
+    }
+
+    # Set up the Reg Key object and open the subkey
+    $Reg = [Microsoft.Win32.RegistryKey]::OpenBaseKey("LocalMachine",$RegistryView);
+    $Key = $Reg.OpenSubKey($Path);
+
+    # Enumerate the keys and get the applications
+    $Applications = $Key.GetSubKeyNames() | %{
+        # Get the pipe object
+        $DisplayName = $_;
+
+        # Get the properties list for this object
+        $DisplayVersion = $Key.OpenSubKey($DisplayName).GetValue("DisplayVersion");
+        $Publisher      = $Key.OpenSubKey($DisplayName).GetValue("Publisher");
+        $InstallDate    = $Key.OpenSubKey($DisplayName).GetValue("InstallDate");
+        
+        # Return to variable
+        $(New-Object PSCustomObject -Property @{
+            DisplayName = $DisplayName;
+            DisplayVersion = $DisplayVersion;
+            Publisher = $Publisher;
+            InstallDate = $InstallDate;
+        });
+     }
+
+    # And return
+    return $Applications;
+}
+
 
 #---------[ OS ]---------
 try {
@@ -291,6 +343,15 @@ try {
 }
 catch {
     Write-ShellMessage -Message "Error gathering BIOS information" -Type ERROR -ErrorRecord $Error[0];
+}
+
+#---------[ Chassis/Hardware ]---------
+try {
+    Write-ShellMessage -Message "Gathering hardware information" -Type INFO;
+    Add-HostInformation -Name Hardware -Value $(Get-WMIObject -Class "Cim_Chassis" | Select -Property *);
+}
+catch {
+    Write-ShellMessage -Message "Error gathering hardware information" -Type ERROR -ErrorRecord $Error[0];
 }
 
 #---------[ System ]---------
@@ -397,20 +458,21 @@ try {
     $CustomShares = @();
 
     # Enumerate the shares from WMI
-    $Shares | Select Name | %{
+    $WMIShares | Select Name | %{
         
         # Get the sharename
         $ShareName = $_.Name;
         
         # Get some share permission information
-        $ShareInfo = Invoke-Expression "net share $ShareName";
+        $Expr = 'net share "{0}"' -f $ShareName;
+        $ShareInfo = Invoke-Expression $Expr;
 
         # Clean it up
         $Permissions = (($ShareInfo | ?{$_ -like "Permission*" -or $_ -like " *"}) -join "");
         $Permissions = $Permissions.Replace("Permission","").Trim().Replace("   "," ");
         
         # Create a new object
-        $Share = $Shares | ?{$_.Name -eq $ShareName};
+        $Share = $WMIShares | ?{$_.Name -eq $ShareName};
         
         # Add the permission property 
         $Share | Add-Member -MemberType NoteProperty -Name SharePermissions -Value $Permissions;
@@ -506,17 +568,17 @@ catch {
 #---------[ Roles & Features ]---------
 try {
     # Check if Server or Workstation here as ServerManager isn't available on workstations
-    if ($HostInformation.OS.Caption.ToLower().Contains("server")) {
+    if ($HostInformation.OS.Caption.ToLower().Contains("server")) {       
         Write-ShellMessage -Message "Gathering roles and features information" -Type INFO;
 
         # Now, we need to do a check here to see if we're on 2003
         if ($HostInformation.OS.Caption.Contains("2003")) {
             # 2003 requires a different capture method; Get the components from the registry
-            $Components = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Setup\Oc Manager\Subcomponents";
+            $Components = @(Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Setup\Oc Manager\Subcomponents");
             
             # Let's check and see if we're x64 and add to the internal collection
             if (Test-Path "C:\Program Files (x86)") {
-                $Components += Get-ItemProperty "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Setup\Oc Manager\Subcomponents";
+                $Components += @(Get-ItemProperty "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Setup\Oc Manager\Subcomponents");
             }
 
             # Get the roles and features data
@@ -525,14 +587,56 @@ try {
                     if ($_.Name -notlike "PS*") {
                         [PSCustomObject]@{
                             "DisplayName" = "Server 2003 feature: $($_.Name)";
-                            "Name"         = $_.Name;
+                            "Name"        = $_.Name;
                             "FeatureType" = "2003 Feature";
-                            "Path"         = $Components.PSPath;
-                            "Subfeatures"  = "N/A"
-                            "Installed"    = [Bool]($Components.$($_.Name));
+                            "Path"        = $Components.PSPath;
+                            "Subfeatures" = "N/A"
+                            "Installed"   = [Bool]($Components.$($_.Name));
                         };
                     };
                 };
+            );
+        }
+        elseif ($HostInformation.OS.Caption.Contains("2008") -and $HostInformation.OS.Caption -notlike "*R2*") {
+            # 2008 R1 only has Servermanagercmd
+            $SMCMD = Invoke-Expression "servermanagercmd -q";
+            
+            # Get the roles and features data
+            $RolesAndFeatures = @(  
+                $SMCMD | %{
+                    # Get the line containing what we want
+                    $Line = $_;
+                    
+                    # Work out whether it's the right type of line
+                    if ($Line.Contains("[X]") -or $Line.Contains("[ ]")) {
+                    
+                        # Find out if it's installed or not
+                        if ($Line.Contains("[X] ")) {
+                            # Yes it is installed, remove the tickbox
+                            $Line = $Line.Replace("[X] ","").Trim();
+                            $Installed = $True;      
+                        }
+                        else {
+                            # No it is not installed, remove the tickbox
+                            $Line = $Line.Replace("[ ] ","").Trim();
+                            $Installed = $False;
+                        }
+                                
+                        # Set the prop values
+                        $DisplayName = $Line.Split("[")[0].Trim();
+                        $Name = $Line.Split("[")[1].Trim().TrimEnd("]");
+                        
+                        # Throw the object out
+                        [PSCustomObject]@{
+                            "DisplayName" = $DisplayName;
+                            "Name"        = $Name
+                            "FeatureType" = "2008 R1 Feature/Role";
+                            "Path"        = "N/A"
+                            "Subfeatures" = "N/A"
+                            "Installed"   = $Installed;
+                        };
+                    }
+                }
             );
         }
         else {
@@ -553,78 +657,119 @@ catch {
 try {
     if (($HostInformation.RolesAndFeatures | ?{$_.Name -eq "Web-Server"}).Installed) {
         Write-ShellMessage -Message "Gathering IIS information" -Type INFO;
-
-        # Get the WebAdministration module imported
-        Import-Module WebAdministration;
-
-        # Now, we need to explicitly cast the outputs of the following
-        # to PSCustomObjects as the IISConfigurationElement and other
-        # types don't serialise properly.
-
+       
         # Get the WebSites
-        $WebSites = Get-WebSite | %{
-            New-Object PSCustomObject -Property @{
-                Name         = $_.Name;
-                ID           = $_.ID;
-                State        = $_.State;
-                PhysicalPath = $_.PhysicalPath;
-                Bindings     = @(,$(($_.Bindings | %{$_.Collection}) -join " "));
-            }
-        }
+        [Xml]$Xml = & "C:\windows\system32\inetsrv\appcmd.exe" "list" "site" "/xml";
+        $Sites = $Xml.DocumentElement.Site | %{$_."SITE.NAME"};
+
+        # Enumerate and check each site to get the data
+        $WebSites = $($Sites | %{
+
+            # Get the site name
+            $SiteName = $_;
+            
+            # Get the XML
+            [Xml]$C = & "C:\windows\System32\Inetsrv\appcmd.exe" "list" "site" "$SiteName" "/xml";
+            $PhysicalPath = & "C:\windows\System32\Inetsrv\appcmd.exe" "list" "app" "$SiteName/" "/text:[path='/'].physicalPath";
+            
+            # New PSCustomObject
+            $(New-Object PSCustomObject -Property @{
+                Name         = $SiteName;
+                ID           = $C.DocumentElement.SITE."SITE.ID";
+                State        = $C.DocumentElement.SITE.state;
+                PhysicalPath = $PhysicalPath;
+                Bindings     = $($C.DocumentElement.SITE.bindings -Split ",");
+            });
+        });
 
         # Get the Application Pools
-        $ApplicationPools = gci "IIS:\AppPools" | Select -Property * | %{
-            $Name = $_.Name;
-            New-Object PSCustomObject -Property @{
-                Name                  = $Name;
-                State                 = $_.State;
-                ManagedPipelineMode   = $_.ManagedPipelineMode;
-                ManagedRuntimeVersion = $_.ManagedRuntimeVersion;
-                StartMode             = $_.StartMode;
-                AutoStart             = $_.AutoStart;
-                Applications          = @(,$((Get-WebSite | ?{$_.applicationPool -eq $Name} | Select Name).Name));
-            }
-        }
+        [Xml]$Xml = & "C:\windows\system32\inetsrv\appcmd.exe" "list" "apppool" "/xml";
+        $AppPools = $Xml.DocumentElement.AppPool | %{$_."APPPOOL.NAME"};
+
+        # Enumerate and check each site to get the data
+        $ApplicationPools = $($AppPools | %{
+
+            # Get the site name
+            $AppPoolName = $_;
+            
+            # Get the data
+            [Xml]$C = & "C:\windows\system32\inetsrv\appcmd.exe" "list" "apppool" "$AppPoolName" "/xml";
+            [String[]]$T = & "C:\windows\system32\inetsrv\appcmd.exe" "list" "apppool" "$AppPoolName" "/text:*";
+            
+            # Get the list of websites for this Application Pool
+            [Xml]$W = & "C:\windows\system32\inetsrv\appcmd.exe" "list" "app" "/xml";
+            $WebSitesForAppPool = ($W.DocumentElement.App | ?{$_."APPPOOL.NAME" -eq "DefaultAppPool"} | Select SITE.NAME)."SITE.NAME" -Join ", ";
+            
+            # New PSCustomObject
+            $(New-Object PSCustomObject -Property @{
+                Name                  = $AppPoolName;
+                State                 = $C.DocumentElement.AppPool.state;
+                ManagedPipelineMode   = $C.DocumentElement.AppPool.PipelineMode;
+                ManagedRuntimeVersion = $C.DocumentElement.AppPool.RuntimeVersion;
+                StartMode             = ((($T | ?{$_ -like "*startMode*"}) -Split ":")[1]) -Replace """","";
+                AutoStart             = $([Bool](((($T | ?{$_ -like "*autoStart*"}) -Split ":")[1]) -Replace """",""));
+                Applications          = $WebSitesForAppPool;
+            });             
+        });
 
         # Get the Bindings
-        $WebBindings = Get-WebBinding | %{
-            New-Object PSCustomObject -Property @{
-                Protocol           = $_.protocol;
-                BindingInformation = $_.bindingInformation;
-            }
-        }
+        $WebBindings = $($Websites | Select -ExpandProperty Bindings | %{
+            # Get the binding split
+            $BS = $_.Split("/");
+            # Return the data
+            $(New-Object PSCustomObject -Property @{
+                Protocol = $BS[0];
+                Binding  = $BS[1];
+            });
+        });
 
         # Get the Virtual Directories
-        $VirtualDirectories = Get-WebVirtualDirectory | %{
-            New-Object PSObject -Property @{
-                Name         = $_.Path.Split("/")[($_.Path.Split("/").Length)-1];
-                Path         = $_.Path;
-                PhysicalPath = $_.PhysicalPath;
-            }
-        }
+        [Xml]$Xml = & "C:\windows\system32\inetsrv\appcmd.exe" "list" "vdirs" "/xml";
+        $VDirs = $Xml.DocumentElement.VDIR | %{$_."VDIR.NAME"};
+
+        # Enumerate and check each site to get the data
+        $VirtualDirectories = $($VDirs | %{
+
+            # Get the site name
+            $VDirName = $_;
+            
+            # Get the data
+            [Xml]$C = & "C:\windows\system32\inetsrv\appcmd.exe" "list" "vdirs" "$VDirName" "/xml";
+            
+            # New PSCustomObject if proper vdir, appcmd reports apps as vdirs too
+            if ($C.DocumentElement.VDIR.path -ne "/") {
+                $(New-Object PSCustomObject -Property @{
+                    Name         = $C.DocumentElement.VDIR."VDIR.NAME";
+                    Path         = $($C.DocumentElement.VDIR.path -replace "/","");
+                    PhysicalPath = $C.DocumentElement.VDIR.physicalPath;
+                });
+            }       
+        });
 
         # Get a list .config files for each application so we can work out dependency chains
-        $ConfigFiles = Get-ChildItem "IIS:\" -Recurse | ?{$_.Name -like "*.config"} | Select FullName;
         $ConfigFileContent = @();
-        
-        # If any are found, enumerate the collection and get the content
-        $ConfigFiles | %{
-            
-            # Get the pipeline object
-            $ConfigFile = $_;
+        $WebSites | %{
+            $Site = $_;
+            # Quick existence check on $_.PhysicalPath
+            if ($Site.PhysicalPath) {
+                if (Test-Path $Site.PhysicalPath) {
+                    # Get the site name and physical path
+                    $WebsiteName = $Site.Name;
+                    $PhysicalPath = $Site.PhysicalPath.Replace("%SystemDrive%",$Env:SystemDrive).Replace("%SystemRoot%",$env:SystemRoot);
+                    
+                    # Enumerate the config files and add to the configfilecontent array
+                    Get-ChildItem -Path $PhysicalPath -Recurse | ?{$_.Name -like "*.config"} | %{
+                        $ConfigFileContent += $(New-Object PSCustomObject -Property @{
+                            Site    = $WebsiteName;
+                            Path    = $_.FullName;
+                            Content = $(Get-Content $_.FullName | Out-String);
+                        }); 
+                    };
+                }
+            }
+        };
 
-            # Work out what website it belongs to
-            $WebSite = (Get-WebSite | ?{$_.PhysicalPath -like "*$($ConfigFile.Directory.FullName)*"}).Name;
-
-            # Add to the collection
-            $ConfigFileContent += $(New-Object PSCustomObject -Property @{
-                Site    = $WebSite;
-                Path    = $ConfigFile.FullName;
-                Content = $(Get-Content $ConfigFile.FullName | Out-String);
-            });
-        }
-
-        # Add a collection containing our IIS trees to the hostinfo object
+        # And add the IIS data to our HostInformation collection
         Add-HostInformation -Name IISConfiguration -Value $(New-Object PSCustomObject -Property @{
             WebSites            = $WebSites;
             ApplicationPools    = $ApplicationPools;
@@ -697,8 +842,35 @@ catch {
 try {
     Write-ShellMessage -Message "Gathering TLS certificate information" -Type INFO;
         
-    # Add a collection containing our certificate tree
-    $TLSCertificates = $(Get-ChildItem "Cert:\LocalMachine" -Recurse | ?{!$_.PSIsContainer} | Select -Property *);
+    # Get the certificate tree
+    $TLSCertificates = $(Get-ChildItem "Cert:\LocalMachine" -Recurse | ?{!$_.PSIsContainer} | Select -Property * | %{
+        $(New-Object PSCustomObject -Property @{
+            EnhancedKeyUsageList = $_.EnhancedKeyUsageList;
+            DnsNameList = $_.DnsNameList;
+            SendAsTrustedIssuer = $_.SendAsTrustedIssuer;
+            EnrollmentPolicyEndPoint = $_.EnrollmentPolicyEndPoint;
+            EnrollmentServerEndPoint = $_.EnrollmentServerEndPoint;
+            PolicyId = $_.PolicyId;
+            Archived = $_.Archived;
+            Extensions = $_.Extensions;
+            FriendlyName = $_.FriendlyName;
+            IssuerName = $_.IssuerName;
+            NotAfter = $_.NotAfter;
+            NotBefore = $_.NotBefore;
+            HasPrivateKey = $_.HasPrivateKey;
+            PublicKey = $_.PublicKey;
+            SerialNumber = $_.SerialNumber;
+            SubjectName = $_.SubjectName;
+            SignatureAlgorithm = $_.SignatureAlgorithm;
+            Thumbprint = $_.Thumbprint;
+            Version = $_.Version;
+            Handle = $_.Handle;
+            Issuer = $_.Issuer;
+            Subject = $_.Subject;
+        });
+    });
+    
+    # Add to the host information collection
     Add-HostInformation -Name TLSCertificates -Value $TLSCertificates;
 }
 catch {
@@ -783,6 +955,9 @@ catch {
 try {
     Write-ShellMessage -Message "Gathering scheduled tasks information" -Type INFO;
     
+    # Start the scheduled tasks service prior to checking
+    Get-Service "Schedule" | Start-Service;
+
     # Now we need to check what OS we're on here, 2003 doesn't support our custom method
     if ($HostInformation.OS.Caption.Contains("2003")) {
         # Ok we have to parse schtasks.exe
@@ -835,14 +1010,36 @@ try {
     if (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL") {
         Write-ShellMessage -Message "Gathering SQL Server information" -Type INFO;
 
-        # Ok let's declare an object to hold our data
+        # Ok let's declare some objects to hold our data
         $SQLServerInformation = @();
+        $SQLInstances = @();
+
+        # Get SQL 2000 instances
+        $KeyInfo = Get-ItemProperty -Path "HKLM:\Software\Microsoft\Microsoft SQL Server" -Name "InstalledInstances" -ErrorAction SilentlyContinue;
+        $KeyInfo.InstalledInstances | %{
+            $SQLInstances += $(New-Object PSCustomObject -Property @{
+                Name = $_;
+                Version = "2000";
+            });
+        }
+
+        # Get all the SQL instances for 2005-2017
+        "","10","11","12","13","14" | %{
+            $IID = $_;
+            Get-WmiObject -Namespace "root\Microsoft\SqlServer\ComputerManagement$IID" -Class "ServerSettings" -ErrorAction SilentlyContinue | %{
+                $SQLInstances += $(New-Object PSCustomObject -Property @{
+                    Name    = $_.InstanceName;
+                    Version = $(Switch($IID){""{"2005"};"10"{"2008"};"11"{"2012"};"12"{"2014"};"13"{"2016"};"14"{"2017"}});
+                });
+            }
+        }
         
-        # Find all the SQL instances by (running) service, this seems to be the most reliable method cross version
-        Get-Service | ?{$_.Name -like "MSSQL*" -and $_.DisplayName -like "SQL Server*" -and $_.Status -eq "Running"} | %{
-            
+        # Enumerate the instances and get the data
+        $SQLInstances | %{
+
             # Get the instance name
-            $InstanceName = [Regex]::Match($_.DisplayName,"(?<=\()[^}]*(?=\))").Value;
+            $InstanceName = $_.Name;
+            $InstanceVersion = $_.Version;
             
             # If the instance is the default we need to connect differently
             if ($InstanceName -eq "MSSQLSERVER") {
@@ -853,37 +1050,58 @@ try {
             }
             
             # Get the list of databases for this instance
-            $Databases = Invoke-SQLQuery -Server $InstanceConnectionIdentifier -Database Master -Query "select name from sys.databases";
+            try {
+                $Databases = Invoke-SQLQuery -Server $InstanceConnectionIdentifier -Database Master -Query "select name from sys.databases";
         
-            # Enumerate the database list and get the sp_helpdb info
-            $DBInfoCollection = @();
-            $Databases | %{
+                # Enumerate the database list and get the sp_helpdb info
+                $DBInfoCollection = @();
+                $Databases | %{
+                
+                    # Get the SP_HELPDB object
+                    $DatabaseName = $_.Name;
+                    $DB = Invoke-SQLQuery -ServerName $InstanceConnectionIdentifier -Database Master -query "EXEC SP_HELPDB '$DatabaseName'";
             
-                # Get the SP_HELPDB object
-                $DatabaseName = $_.Name;
-                $DB = Invoke-SQLQuery -ServerName $InstanceConnectionIdentifier -Database Master -query "EXEC SP_HELPDB '$DatabaseName'";
-        
-                # Parse and add to the DBInfoCollection
-                $DBInfoCollection += $(New-Object PSCustomObject -Property @{
-                    Name               = $DB.name.Trim();
-                    Size               = $DB.db_size.Trim();
-                    Owner              = $DB.owner.Trim();
-                    DBID               = $DB.dbid;
-                    CreatedDate        = [Datetime]$DB.created;
-                    Status             = $DB.status.Trim();
-                    CompatibilityLevel = $DB.compatibility_level;
-                });
-            
+                    # Parse and add to the DBInfoCollection
+                    $DBInfoCollection += $(New-Object PSCustomObject -Property @{
+                        Name               = $DB.name;
+                        Size               = $(if($DB.db_size){$DB.db_size.ToString().Trim()});
+                        Owner              = $DB.owner;
+                        DBID               = $DB.dbid;
+                        CreatedDate        = $(if ($DB.created) {[Datetime]$DB.created});
+                        Status             = $DB.status;
+                        CompatibilityLevel = $DB.compatibility_level;
+                    });
+                }
+
+                # Set our accessible bool
+                $Accessible = $True;
             }
-            
-            # Add to the SQLServerInformation object
+            catch {
+                # Get the pipe object
+                $E = $_;
+
+                # Check for a login failed message here
+                if ($E.Exception.Message.Contains("login failed")) {
+                    Write-ShellMessage -Message "The current credentials supplied do not have login permissions to '$InstanceConnectionIdentifier'" -Type ERROR -ErrorRecord $E;
+                }
+                else {
+                    Write-ShellMessage -Message "There was an error connecting to the SQL instance '$InstanceConnectionIdentifier'" -Type ERROR -ErrorRecord $E;
+                }
+
+                # And set the DBInfoCollection object to $null/Accessible to false because we cant connect
+                $DBInfoCollection = $Null;
+                $Accessible = $False;
+            }
+
+            # Add to the Host Information collection
             $SQLServerInformation += $(New-Object PSCustomObject -Property @{
                 ServerName           = $env:computername;
                 InstanceName         = $InstanceName;
+                InstanceVersion      = $InstanceVersion;
                 ConnectionIdentifier = $InstanceConnectionIdentifier;
-                Databases            = $DBInfoCollection;    
+                Databases            = $DBInfoCollection;
+                Accessible           = $Accessible;
             });
-        
         }
 
         # Add a collection containing our SQL server information to the hostinfo object
@@ -896,20 +1114,14 @@ catch {
 
 #---------[ Apache Virtual Hosts ]---------
 try {
-    if (Get-Service | ?{$_.Name -like "*Apache*" -and $_.Name -notlike "*Tomcat*"}) {
+    if ($(try{[Void](Get-Process "httpd");$True;}catch{$false})) {
         Write-ShellMessage -Message "Gathering Apache Virtual Host information" -Type INFO;
 
-        # Get the Apache install and httpd.exe paths
-        $ApachePath = $((Get-ChildItem "C:\Program Files (x86)\*Apache*").FullName);
-        $Httpd      = $((Get-ChildItem $ApachePath "httpd.exe" | Select -First 1).FullName);
+        # Get the Apache httpd.exe path
+        $Httpd = (Get-Process "httpd").Path;
 
-        if ($Httpd) {
-            # Add a collection containing our Apache tree to the hostinfo object
-            Add-HostInformation -Name ApacheVirtualHosts -Value $((Invoke-Expression "$httpd -S").Split("`r`n"));
-        }
-        else {
-            throw "Couldn't locate Apache httpd.exe";
-        }
+        # Add a collection containing our Apache tree to the hostinfo object
+        Add-HostInformation -Name ApacheVirtualHosts -Value $((Invoke-Expression "$httpd -S").Split("`r`n"));
     }
 }
 catch {
@@ -918,16 +1130,16 @@ catch {
 
 #---------[ Tomcat Web Applications ]---------
 try {
-    if (Get-Service | ?{$_.Name -like "*Tomcat*"}) {
-        Write-ShellMessage -Message "Gathering Tomcat application information" -Type INFO;
+    if (Get-Service | ?{$_.DisplayName -like "Apache Tomcat*"}) {
+        Write-ShellMessage -Message "Gathering Apache Tomcat application information" -Type INFO;
 
         # Add a collection containing our Tomcat tree to the hostinfo object
-        $TomcatApplications = $((New-Object System.Net.WebClient).DownloadString("http://localhost:8080/manager/text/list").Split("`r`n"));
+        $TomcatApplications = $((New-Object System.Net.WebClient).DownloadString("http://localhost:8080/manager/list").Split("`r`n"));
         Add-HostInformation -Name TomcatApplications -Value $TomcatApplications;
     }
 }
 catch {
-    Write-ShellMessage -Message "Error gathering Tomcat application information" -Type ERROR -ErrorRecord $Error[0];
+    Write-ShellMessage -Message "Error gathering Apache Tomcat application information" -Type ERROR -ErrorRecord $Error[0];
 }
 
 #---------[ Windows Services ]---------
@@ -939,6 +1151,64 @@ catch {
     Write-ShellMessage -Message "Error gathering Windows service information" -Type ERROR -ErrorRecord $Error[0];
 }
 
+#---------[ Base networking topology ]---------
+try {
+    Write-ShellMessage -Message "Gathering established session and connection information" -Type INFO;
+    
+    # Ok get a full netstat and declare an output object
+    $Netstat = Invoke-Expression "netstat -ano"
+    $ConnectionInformation = @();
+    
+    # Enumerate the output from netstat
+    $Netstat | ?{$_.Contains("ESTABLISHED") -or $_.Contains("CLOSE_WAIT")} | %{
+    
+        # Ok get the netstat row into an object to process
+        $Connection = $_;
+    
+        # Split up on and dedupe spaces
+        $Properties = $Connection.Split(" ") | ?{$_};
+    
+        # Get the process object from the PID
+        try {
+            $ProcessObject = Get-Process -ID $Properties[4];
+        }
+        catch {
+            # Meh, processes aren't always linked here anyway.
+        }
+        
+        # Create a new PSCustomObject using the properties we just split out, add to the collection
+        $ConnectionInformation += $(New-Object PSCustomObject -Property @{
+            Protocol           = $Properties[0];
+            LocalAddress       = $Properties[1].Split(":")[0];
+            LocalPort          = $Properties[1].Split(":")[1];
+            RemoteAddress      = $Properties[2].Split(":")[0];
+            RemotePort         = $Properties[2].Split(":")[1];
+            State              = $Properties[3];
+            ProcessID          = $Properties[4];
+            ProcessName        = $ProcessObject.Name;
+            ProcessDescription = $ProcessObject.Description;
+            ProcessProduct     = $ProcessObject.Product;
+            ProcessFileVersion = $ProcessObject.FileVersion;
+            ProcessExePath     = $ProcessObject.Path;
+            ProcessCompany     = $ProcessObject.Company;
+        });
+    }
+
+    # And add to our HostInformation collection
+    Add-HostInformation -Name ConnectionInformation -Value $ConnectionInformation;
+}
+catch {
+    Write-ShellMessage -Message "Error gathering established session and connection information" -Type ERROR -ErrorRecord $Error[0];
+}
+
+#---------[ Fix ExecutionPolicy ]---------
+Set-ExecutionPolicy $ExecutionPolicy -Force;
+
 #---------[ Return ]---------
 Write-ShellMessage -Message "Gathering completed" -Type SUCCESS;
-return $HostInformation;
+if ($X.IsPresent) {
+    return [System.Management.Automation.PSSerializer]::Serialize($HostInformation,5);
+}
+else {
+    return $HostInformation;
+}
