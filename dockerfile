@@ -1,23 +1,29 @@
 # Dockerfile for Audit container
-FROM microsoft/powershell:ubuntu16.04
+FROM microsoft/windowsservercore:10.0.14393.2189
 
 LABEL maintainer="John George <john.george@claranet.uk>" \
       readme.md="https://github.com/claranet/windows-audit/README.md" \
       description="This dockerfile will build a container to host Audit scripting."
 
-# Setup the locale
-RUN locale-gen en_GB.UTF-8
-ENV LANG='en_GB.UTF-8' LANGUAGE='en_GB:en' LC_ALL='en_GB.UTF-8'
-
-# Install Nmap
-RUN apt-get install -y --no-install-recommends nmap
+# Configure the container os
+RUN powershell -NoProfile -ExecutionPolicy Bypass -Command " \
+      Set-WinSystemLocale 'en-GB'; \
+      Set-TimeZone 'GMT Standard Time'; \
+      Invoke-Expression $(curl https://chocolatey.org/install.ps1 -UseBasicParsing | Select -ExpandProperty Content); \
+      choco install -y git -params '\"/GitAndUnixToolsOnPath\"'; \
+      choco install -y poshgit; \
+      choco install -y putty; \
+"
 
 # Copy local project files across
-COPY . /etc/windows-audit
+COPY . C:/windows-audit
 
 # Use PowerShell as the default shell starting in the audit directory
-CMD [ "pwsh", \
-      "-noexit", \
-      "-command", \
-      "Write-Host '# Audit Container POC' -ForegroundColor Yellow;Write-Host '# For more information and help please visit: https://github.com/claranet/windows-audit' -ForegroundColor Yellow;cd /etc/windows-audit " \
-]
+CMD "powershell \
+-ExecutionPolicy Bypass \
+-NoExit \
+-Command \
+Write-Host '# Claranet Audit Container' -ForegroundColor Yellow; \
+Write-Host '# For more information and help please visit: https://github.com/claranet/windows-audit' -ForegroundColor Yellow; \
+cd C:\windows-audit \
+"
