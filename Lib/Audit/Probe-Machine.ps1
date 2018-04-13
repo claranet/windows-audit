@@ -80,12 +80,12 @@ $Result = [PSCustomObject][Ordered]@{
 # Test for ICMP ping first
 try {
     # Init ping object and hit it
-	$Ping       = New-Object System.Net.NetworkInformation.Ping;
+    $Ping       = New-Object System.Net.NetworkInformation.Ping;
     $PingResult = $Ping.Send($Target, 1000, $(New-Object Byte[] 32));
                 
     # Test the result
-	if($PingResult.Status -eq "Success") {
-		
+    if($PingResult.Status -eq "Success") {
+
         # Set our ICMP status
         $Result.Networking.ICMP = $True;
         
@@ -95,10 +95,10 @@ try {
         } else {
             $Result.Networking.ResponseTime = $PingResult.RoundtripTime;
         }
-	} else {
+    } else {
         # Failed
         $Result.ICMP = $False;
-	}
+    }
 }
 catch {
     # Total failure
@@ -386,21 +386,21 @@ if ($("Linux","Unix","Solaris","HP-UX","BSD","Unknown"|%{if($Result.ScanInfo.OS.
         # Try private key authentication with passphrase
         if ($LinuxUsername -and $LinuxPrivateKeyFile -and $LinuxPrivateKeyPassphrase) {
 
-	        # Wrap the ssh connection in a Process so we can write to stdin
-	        $ProcessStartInfo = New-Object System.Diagnostics.ProcessStartInfo;
-	        $Process = New-Object System.Diagnostics.Process;
+            # Wrap the ssh connection in a Process so we can write to stdin
+            $ProcessStartInfo = New-Object System.Diagnostics.ProcessStartInfo;
+            $Process = New-Object System.Diagnostics.Process;
 
-	        # Set the startinfo object properties and set the process to use this startinfo
-	        $ProcessStartInfo.FileName = $($env:windir + "\System32\cmd.exe");
-	        $ProcessStartInfo.CreateNoWindow = $True;
-	        $ProcessStartInfo.UseShellExecute = $False;
-	        $ProcessStartInfo.RedirectStandardOutput = $True;
-	        $ProcessStartInfo.RedirectStandardInput = $True;
-	        $ProcessStartInfo.RedirectStandardError = $True;
-	        $Process.StartInfo = $ProcessStartInfo;
+            # Set the startinfo object properties and set the process to use this startinfo
+            $ProcessStartInfo.FileName = $($env:windir + "\System32\cmd.exe");
+            $ProcessStartInfo.CreateNoWindow = $True;
+            $ProcessStartInfo.UseShellExecute = $False;
+            $ProcessStartInfo.RedirectStandardOutput = $True;
+            $ProcessStartInfo.RedirectStandardInput = $True;
+            $ProcessStartInfo.RedirectStandardError = $True;
+            $Process.StartInfo = $ProcessStartInfo;
 
-	        # Start the process
-	        [Void]($Process.Start());
+            # Start the process
+            [Void]($Process.Start());
 
             # Cmd and execute
             $Cmd = "plink -ssh $Target -P 22 -l $LinuxUsername -i $LinuxPrivateKeyFile echo $Echo";
@@ -413,13 +413,13 @@ if ($("Linux","Unix","Solaris","HP-UX","BSD","Unknown"|%{if($Result.ScanInfo.OS.
             # Close stdin now we're done with it
             $Process.StandardInput.Close();
 
-	        # Block the exit until completion
-	        $Process.WaitForExit();
+            # Block the exit until completion
+            $Process.WaitForExit();
 
-	        # Grab stderr, stdout and exit code in case we need to throw
-	        $Stderr = $Process.StandardError.ReadToEnd();
+            # Grab stderr, stdout and exit code in case we need to throw
+            $Stderr = $Process.StandardError.ReadToEnd();
             $Stdout = $Process.StandardOutput.ReadToEnd();
-	        $Status = $Process.ExitCode;
+            $Status = $Process.ExitCode;
 
             # Check
             if (($Stdout.Split("`r`n") | ?{$_ -and $_ -notlike "*\system32*"} | Select -Last 1) -like "*$Echo*") {
@@ -442,13 +442,13 @@ if ($("Linux","Unix","Solaris","HP-UX","BSD","Unknown"|%{if($Result.ScanInfo.OS.
                 # Close stdin now we're done with it
                 $Process.StandardInput.Close();
 
-	            # Block the exit until completion
-	            $Process.WaitForExit();
+                # Block the exit until completion
+                $Process.WaitForExit();
 
-	            # Grab stderr, stdout and exit code in case we need to throw
-	            $Stderr = $Process.StandardError.ReadToEnd();
+                # Grab stderr, stdout and exit code in case we need to throw
+                $Stderr = $Process.StandardError.ReadToEnd();
                 $Stdout = $Process.StandardOutput.ReadToEnd();
-	            $Status = $Process.ExitCode;
+                $Status = $Process.ExitCode;
 
                 # Get a uname for this host using this connection method
                 $Result.ScanInfo.OS = ($Stdout.Split("`r`n") | ?{$_ -and $_ -notlike "*\system32*"} | Select -Last 1);
