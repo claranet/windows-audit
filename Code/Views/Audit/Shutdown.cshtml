@@ -1,0 +1,42 @@
+<br />
+<div class="jumbotron">
+    <h1 class="display-3"><span class="glyphicon glyphicon-check"></span>  Time to go</h1>
+    <h4>Please check the list off below before shutting down.</h4>
+    <hr class="my-5">
+    <p class="lead">
+    <div class="row">
+        <div class="col-lg-12">
+            <form>
+                <fieldset class="form-group">
+                    <div class="form-check">
+                        <label class="form-check-label flow-text-size">
+                        <input class="form-check-input" type="checkbox" value="">
+                        I have safely stored a copy of the private key file I was given when the appliance was turned on.
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <label class="form-check-label flow-text-size">
+                        <input class="form-check-input" type="checkbox" value="">
+                        I have exported the results from my scan.
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <label class="form-check-label flow-text-size">
+                        <input class="form-check-input" type="checkbox" value="">
+                        I am happy that any failed scans are okay to ignore and I don't want to resume scanning this list.
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <label class="form-check-label flow-text-size">
+                        <input class="form-check-input" type="checkbox" value="">
+                        I understand that after clicking Shutdown this appliance will be returned to the state it started in.
+                        </label>
+                    </div>
+                </fieldset>
+            </form>
+        </div>
+    </div>
+    </p>
+    <hr class="my-5">
+    <a class="btn btn-primary btn-danger disabled" asp-controller="Audit" asp-action="Shutdown" role="button"><span class="glyphicon glyphicon-off"></span>&nbsp;&nbsp;Shutdown</a>
+</div>

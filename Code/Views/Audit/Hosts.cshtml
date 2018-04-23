@@ -1,0 +1,97 @@
+﻿<script>
+    // Dirty way of making sure we have feedback on the file input :(
+    $(function() {
+    $(document).on('change', ':file', function() {
+        var input = $(this),
+            numFiles = input.get(0).files ? input.get(0).files.length : 1,
+            label = input.val().replace(/\\/g, '/').replace(/.*\//, '');
+        input.trigger('fileselect', [numFiles, label]);
+    });
+    $(document).ready( function() {
+        $(':file').on('fileselect', function(event, numFiles, label) {
+
+            var input = $(this).parents('.input-group').find(':text'),
+                log = numFiles > 1 ? numFiles + ' files selected' : label;
+
+            if( input.length ) {
+                input.val(log);
+                $(':input[id="UploadCsv"]').prop('disabled', false);
+            } else {
+                $(':input[id="UploadCsv"]').prop('disabled', true);
+                if( log ) alert(log);
+            }
+
+        });
+    });
+});
+</script>
+<br />
+<h2>Add Hosts</h2>
+<br />
+<h4>Use this page to upload a CSV file containing the hosts you wish to scan. For an empty template file please click <a asp-controller="Audit" asp-action="GetTemplate" role="button">here.</a></h4>
+<br />
+<h4>The hosts CSV file consists of four columns;</h4>
+<ul>
+  <li><b>Endpoint</b>: This can be an IP address, CIDR block, NetBIOS name or DNS alias.</li>
+  <li><b>Operand</b>: This is either an include <b>></b> or exclude <b><</b> chevron, use this to include large CIDR blocks but exclude specific hosts/blocks.</li>
+  <li><b>Credential</b>: The ID of the credential to be used in scanning, if omitted the default credential will be used for that OS type.</li>
+  <li><b>OperatingSystem</b>: Used to describe the Operating System type to cut down on scanning time. Use either <b>Linux</b> or <b>Windows</b>.</li>
+</ul>
+<br />
+<form method="post" asp-controller="Audit" enctype="multipart/form-data" asp-action="UploadHosts">
+    <div>
+        <p>Upload Hosts CSV File:</p>
+        <div class="row">
+            <div class="col-lg-3">
+                <div class="input-group">
+                    <label class="input-group-btn">
+                        <span class="btn btn-primary">
+                            Browse&hellip; <input type="file" name="HostsCsvFile" style="display: none;">
+                        </span>
+                    </label>
+                    <input type="text" class="form-control" readonly>
+                </div>
+            </div>
+            <div class="col-lg-3">
+                <button id="UploadCsv" class="btn btn-success" type="submit" disabled/>Upload</button>
+            </div>
+        </div>       
+    </div>
+</form>
+<br />
+<div class="row">
+    <div class="col-lg-6">
+        <h2>Currently Loaded Hosts</h2>
+    </div>
+    <div class="col-lg-6" style="padding-top: 20px;">
+         <a class="btn btn-danger float-right" asp-controller="Audit" asp-action="ClearHosts" role="button">Clear Hosts</a>
+    </div>
+</div>
+<br />
+<table class="table table-hover">
+  <thead>
+      <tr>
+          <th scope="col">Endpoint</th>
+          <th scope="col">Operand</th>
+          <th scope="col">Credential</th>
+          <th scope="col">Operating System</th>
+          <th scope="col">Familiarity</th>
+          <th scope="col">Status</th>
+          <th scope="col">Errors</th>
+      </tr>
+  </thead>
+  <tbody>
+		@foreach (var h in @Model)
+		{
+            <tr class="table-active">
+                <th scope="row">@h.Endpoint</th>
+                <td>@h.Operand</td>
+                <td>@h.Credential</td>
+                <td>@h.OperatingSystem</td>
+                <td>@h.FamiliarityString</td>
+                <td>@h.StatusString</td>
+                <td>@string.Join("\r\n", @h.Errors.ToArray())</td>
+            </tr>
+        }
+  </tbody>
+</table> 

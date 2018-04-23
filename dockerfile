@@ -13,12 +13,13 @@ RUN powershell -NoProfile -ExecutionPolicy Bypass -Command " \
       choco install -y git -params '\"/GitAndUnixToolsOnPath\"'; \
       choco install -y poshgit; \
       choco install -y putty; \
+      choco install -y winscp; \
 "
 
 # Copy local project files across
-COPY . C:/windows-audit
+COPY ./Code C:/windows-audit
 
-# Use PowerShell as the default shell starting in the audit directory
+#<<<<<< Needs more cowbell - set to run kestrel exe web application instead
 CMD "powershell \
 -ExecutionPolicy Bypass \
 -NoExit \

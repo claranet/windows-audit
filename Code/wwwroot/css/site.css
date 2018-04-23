@@ -1,0 +1,220 @@
+﻿body {
+    padding-top: 50px;
+    padding-bottom: 20px;
+}
+
+/* Wrapping element */
+/* Set some basic padding to keep content from hitting the edges */
+.body-content {
+    padding-left: 15px;
+    padding-right: 15px;
+}
+
+/* Carousel */
+.carousel-caption p {
+    font-size: 20px;
+    line-height: 1.4;
+}
+
+/* Make .svg files in the carousel display properly in older browsers */
+.carousel-inner .item img[src$=".svg"] {
+    width: 100%;
+}
+
+/* QR code generator */
+#qrCode {
+    margin: 15px;
+}
+
+/* Hide/rearrange for smaller screens */
+@media screen and (max-width: 767px) {
+    /* Hide captions */
+    .carousel-caption {
+        display: none;
+    }
+}
+
+/* Navbar override */
+.navbar-inverse {
+    background-color: #cd0000;
+    border-color: #cd0000;
+}
+
+.navbar-inverse .navbar-brand {
+    color: #ffffff;
+}
+
+/* Background colour overrides */
+.b-failed {
+    background-color: red;
+}
+
+.b-warning {
+    background-color: orange;
+}
+
+.b-success {
+    background-color: green;
+}
+
+.b-incomplete {
+    background-color: silver;
+}
+
+/* Flow overrides */
+.flow-main-column {
+    width: 16%;
+    float: left;
+}
+
+.flow-int-column {
+    width: 5%;
+    float: left;
+    text-align: center;
+    padding-top: 0.5%;
+    color: #333;
+    font-size: 20px;
+}
+
+.flow-btn {
+    width: 100%;
+}
+
+.flow-row {
+    width: 100%;
+    text-align: center;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.flow-icon-size {
+    font-size: 50px;
+}
+
+.flow-text-size {
+    font-size: 20px;
+}
+
+/* Ugly html file input compensator */
+.ugly-input-button-compensator {
+    width: 12%;
+}
+
+/* Floaters */
+.float-right {
+    float: right;
+}
+
+/* Private key modal elements */
+.private-key-header {
+    background-color: red;
+    color: white;
+}
+
+/* Badges */
+.badge {
+    display: inline-block;
+    padding: 0.25em 1rem;
+    font-size: 75%;
+    font-weight: 300;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+    border-radius: 0;
+}
+
+.badge:empty {
+    display: none;
+}
+
+.btn .badge {
+    position: relative;
+    top: -1px;
+}
+
+.badge-pill {
+    padding-right: 0.6em;
+    padding-left: 0.6em;
+    border-radius: 10rem;
+}
+
+.badge-primary {
+    color: #fff;
+    background-color: #008cba;
+}
+
+.badge-primary[href]:hover, .badge-primary[href]:focus {
+    color: #fff;
+    background-color: #006687;
+}
+
+.badge-secondary {
+    color: #222;
+    background-color: #eee;
+}
+
+.badge-secondary[href]:hover, .badge-secondary[href]:focus {
+    color: #222;
+    background-color: #d5d4d4;
+}
+
+.badge-success {
+    color: #fff;
+    background-color: #43ac6a;
+}
+
+.badge-success[href]:hover, .badge-success[href]:focus {
+    color: #fff;
+    background-color: #358753;
+}
+
+.badge-info {
+    color: #fff;
+    background-color: #5bc0de;
+}
+
+.badge-info[href]:hover, .badge-info[href]:focus {
+    color: #fff;
+    background-color: #31b0d5;
+}
+
+.badge-warning {
+    color: #fff;
+    background-color: #E99002;
+}
+
+.badge-warning[href]:hover, .badge-warning[href]:focus {
+    color: #fff;
+    background-color: #b67102;
+}
+
+.badge-danger {
+    color: #fff;
+    background-color: #F04124;
+}
+
+.badge-danger[href]:hover, .badge-danger[href]:focus {
+    color: #fff;
+    background-color: #d32a0e;
+}
+
+.badge-light {
+    color: #222;
+    background-color: #eee;
+}
+
+.badge-light[href]:hover, .badge-light[href]:focus {
+    color: #222;
+    background-color: #d5d4d4;
+}
+
+.badge-dark {
+    color: #fff;
+    background-color: #222;
+}
+
+.badge-dark[href]:hover, .badge-dark[href]:focus {
+    color: #fff;
+    background-color: #090808;
+}

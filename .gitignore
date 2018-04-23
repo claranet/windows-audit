@@ -1,13 +1,5 @@
-# Vagrant test box data
-.vagrant
-vagrantfile
-
-# Output data
-Output
-Filtered-Audit-Data.xlsx
-Audit-Results.csv
-Audit-Statistics.txt
-
-# Input data
-testhints.txt
-nodehints.txt
+/Code/Audit/Credentials/*
+/Code/Audit/Data/*
+/Code/Audit/Encryption/*
+/Code/Audit/Hosts/*
+/Code/Audit/Results/*

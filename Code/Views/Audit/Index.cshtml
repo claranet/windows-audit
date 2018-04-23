@@ -1,0 +1,110 @@
+﻿<script>
+$(document).ready(function () {  
+    @if (@Model) {<text>$("#PrivateKeyModal").modal('show');</text>}
+    $("#DownloadKeyButton").click(function() {
+        $('#DismissKeyButton').prop('disabled', false);
+        $('#DismissKeyButton').removeClass('btn-danger');
+        $('#DismissKeyButton').addClass('btn-success');
+        $('#submit-form').click();
+        $('#DownloadKeyButton').prop('disabled', true);
+        $('#ScanName').prop('disabled', true);
+    });
+    $('#ScanName').keyup(function() {
+        var regex = /^(?!\.)(?!com[0-9]$)(?!con$)(?!lpt[0-9]$)(?!nul$)(?!prn$)[^\|\*\?\\:<>/$"]*[^\.\|\*\?\\:<>/$"]+$/;
+        if ($('#ScanName').val().match(regex)) {
+            // Clear the invalid text
+            $('#ScanInvalidReason').text("");
+            // Enable the button
+            $('#DownloadKeyButton').prop('disabled', false);
+            $('#DownloadKeyButton').removeClass('btn-danger');
+            $('#DownloadKeyButton').addClass('btn-success');
+        } else {
+            // Set the invalid text
+            $('#ScanInvalidReason').text("Must be a valid Windows filename");
+            // Disable the button
+            $('#DownloadKeyButton').prop('disabled', true);
+            $('#DownloadKeyButton').removeClass('btn-success');
+            $('#DownloadKeyButton').addClass('btn-danger');
+        }
+    });
+});
+</script>
+<br />
+<div class="jumbotron">
+    <h1 class="display-3"><span class="glyphicon glyphicon-equalizer display-3"></span>  Audit Your Estate</h1>
+    <h4>Welcome to the Claranet Audit. Please follow the instructions below to scan your network and export the data for analysis.</h4>
+    <hr class="my-5">
+    <br />
+    <p class="lead">
+    <div class="row flow-row">
+        <div class="flow-main-column">
+            <a class="btn btn-primary flow-btn btn-default" asp-controller="Audit" asp-action="Credentials" role="button"><span class="glyphicon glyphicon-credit-card"></span>&nbsp;&nbsp;Add Credentials</a> 
+            <h6 class="text-primary">..to allow access to resources on the network.</h6>
+        </div>
+        <div class="flow-int-column">
+            <span class="glyphicon glyphicon-arrow-right"></span>
+        </div>
+        <div class="flow-main-column">
+            <a class="btn btn-primary flow-btn btn-info" asp-controller="Audit" asp-action="Hosts" role="button"><span class="glyphicon glyphicon-tasks"></span>&nbsp;&nbsp;Add Hosts</a>
+            <h6 class="text-info">..that you wish to scan and obtain information from.</h6>
+        </div>
+        <div class="flow-int-column">
+            <span class="glyphicon glyphicon-arrow-right"></span>
+        </div>
+        <div class="flow-main-column">
+            <a class="btn btn-primary flow-btn btn-warning" asp-controller="Audit" asp-action="Scan" role="button"><span class="glyphicon glyphicon-flash"></span>&nbsp;&nbsp;Scan</a>
+            <h6 class="text-warning">..the selection of hosts that you have made.</h6>
+        </div>
+        <div class="flow-int-column">
+            <span class="glyphicon glyphicon-arrow-right"></span>
+        </div>
+        <div class="flow-main-column">
+            <a class="btn btn-primary flow-btn btn-success" asp-controller="Audit" asp-action="Export" role="button"><span class="glyphicon glyphicon-save"></span>&nbsp;&nbsp;Export</a>
+            <h6 class="text-success">..the data from these hosts for analysis and compliation.</h6>
+        </div>
+        <div class="flow-int-column">
+            <span class="glyphicon glyphicon-arrow-right"></span>
+        </div>
+        <div class="flow-main-column">
+            <a class="btn btn-primary flow-btn btn-danger" asp-controller="Audit" asp-action="Shutdown" role="button"><span class="glyphicon glyphicon-off"></span>&nbsp;&nbsp;Shutdown</a>
+            <h6 class="text-danger">..this appliance wiping the data to maintain security.</h6>
+        </div>
+    </div>
+    </p>
+    <hr class="my-5">
+    <h5 style="font-style:italic"><span class="glyphicon glyphicon-exclamation-sign"></span> Please note: as this is running in a docker container the storage is <b>not persistent</b>. All 
+    encryption keys, logins, credentials, hosts and scan results will be purged when the container is stopped. <b>Be sure to export your results and save your encryption key</b>
+    prior to shutting down, or you will need to re-run the process.</h5>
+</div>
+
+<div class="modal fade" tabindex="-1" id="PrivateKeyModal" data-keyboard="false" data-backdrop="static">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header private-key-header">
+        <h3 class="modal-title private-key-header">Important</h3>
+      </div>
+      <div class="modal-body">
+        <h4>
+            <p>To begin, enter a scan name below and click <b>Generate Key Pair</b>. This will prompt you to download the private key 
+            file used to decrypt data from this scan. Once downloaded, safely store it locally on your workstation before proceeding.</p>
+            <br />
+            <p><b>You will not get another opportunity to download this file, if you lose it the data will be useless and you will need to start again from scratch.</b></p>
+            <br />
+        </h4>
+            <form id="ScanNameForm">
+                <fieldset>
+                    <div class="form-group" id="ScanNameDiv">
+                        <input class="form-control form-control-lg" type="text" placeholder="Enter scan name e.g. 'mycustomer-global-dns-servers'" name="ScanName" id="ScanName">
+                        <div id="ScanInvalidReason" class="text-danger"></div>
+                    </div>
+                    <input type="submit" id="submit-form" class="hidden" asp-controller="Audit" asp-action="FirstRun" role="button" />
+                </fieldset>
+            </form>
+      </div>
+      <div class="modal-footer">
+        <button id="DownloadKeyButton" class="btn btn-danger" disabled>Generate Key Pair</button>
+        <button id="DismissKeyButton" type="button" class="btn btn-danger" data-dismiss="modal" disabled>Continue</button>
+      </div>
+    </div>
+  </div>
+</div>

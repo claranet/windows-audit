@@ -1,0 +1,62 @@
+<br />
+<div class="jumbotron">
+    <h1 class="display-3"><span class="glyphicon glyphicon-zoom-in"></span>  Scan</h1>
+    <h4>Click <b>Scan</b> to proceed.</h4>
+    <hr class="my-5">
+    <div class="row" id="ScanInfoPlaceholder">
+        <div class="col-lg-12">
+            <ul class="list-group">
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Name
+                    <span class="float-right"><strong>@Model.Name</strong></span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Status
+                    <span id="InProgressSpan" class="float-right"><strong>@Model.StatusString</strong></span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Estimated time remaining
+                    <span class="float-right"><strong>@Model.TimeRemaining</strong></span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Total Progress 
+                    <span class="badge badge-secondary">@Model.CompletedHostsPercent%</span>
+                    <span class="badge badge-secondary">@Model.TotalHostsCount Remaining</span>
+                    <span class="badge badge-secondary">@Model.CompletedHostsCount Completed</span>
+                    <div class="progress">
+                        <div class="progress-bar bg-success active" role="progressbar" style="width: @(Model.CompletedHostsPercent)%" aria-valuenow="@(Model.CompletedHostsPercent)" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Network Probe success rate 
+                    <span class="badge badge-danger">@Model.ProbeFailedCount Failed</span>
+                    <span class="badge badge-success">@Model.ProbeSuccessCount Successful</span>
+                    <span class="badge badge-secondary">@Model.ProbeRemainingCount Remaining</span>
+                    <div class="progress">
+                        <div class="progress-bar b-success" role="progressbar" style="width: @Model.ProbeSuccessPercent%" aria-valuenow="@Model.ProbeSuccessPercent" aria-valuemin="0" aria-valuemax="100"></div>
+                        <div class="progress-bar b-failed" role="progressbar" style="width: @Model.ProbeFailedPercent%" aria-valuenow="@Model.ProbeFailedPercent" aria-valuemin="0" aria-valuemax="100"></div>
+                        <div class="progress-bar b-incomplete" role="progressbar" style="width: @Model.ProbeRemainingPercent%" aria-valuenow="@Model.ProbeRemainingPercent" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Audit Success Rate 
+                    <span class="badge badge-danger">@Model.AuditFailedCount Failed</span>
+                    <span class="badge badge-success">@Model.AuditSuccessCount Successful</span>
+                    <div class="progress">
+                        <div class="progress-bar b-success" role="progressbar" style="width: @Model.AuditSuccessPercent%" aria-valuenow="@Model.AuditSuccessPercent" aria-valuemin="0" aria-valuemax="100"></div>
+                        <div class="progress-bar b-failed" role="progressbar" style="width: @Model.AuditFailedPercent%" aria-valuenow="@Model.AuditFailedPercent" aria-valuemin="0" aria-valuemax="100"></div>
+                        <div class="progress-bar b-incomplete" role="progressbar" style="width: @Model.AuditRemainingPercent%" aria-valuenow="@Model.AuditRemainingPercent" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </div>
+    <hr class="my-5">
+    <p class="lead">
+        <div class="row">
+            <div class="col-lg-12">
+                <a id="ScanStartButton" class="btn btn-primary btn-success" asp-controller="Audit" asp-action="StartScan" role="button"><span class="glyphicon glyphicon-zoom-in"></span>&nbsp;&nbsp;Scan</a>
+            </div>
+        </div>
+    </p>
+</div>
