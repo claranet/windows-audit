@@ -11,6 +11,7 @@ RUN powershell -NoProfile -ExecutionPolicy Bypass -Command " \
       Set-TimeZone 'GMT Standard Time'; \
       winrm s winrm/config/client '@{TrustedHosts=\"*\"}'; \
       Invoke-Expression $(curl https://chocolatey.org/install.ps1 -UseBasicParsing | Select -ExpandProperty Content); \
+      New-NetFirewallRule -Name audit -DisplayName audit -Profile Any -Direction Inbound -Action Allow -Protocol TCP -LocalPort 5001; \
 "
 # Configure audit prereqs
 RUN powershell -NoProfile -ExecutionPolicy Bypass -Command " \
