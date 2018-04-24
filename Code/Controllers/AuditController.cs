@@ -96,6 +96,32 @@ namespace claranet_audit.Controllers
         {
             if (IsFirstRun)
             {
+                // First let's make sure the root directories are created (git excludes empties)
+                if (!Directory.Exists(EncryptionRoot))
+                {
+                    Directory.CreateDirectory(EncryptionRoot);
+                }
+
+                if (!Directory.Exists(CredentialsRoot))
+                {
+                    Directory.CreateDirectory(CredentialsRoot);
+                }
+
+                if (!Directory.Exists(HostsRoot))
+                {
+                    Directory.CreateDirectory(HostsRoot);
+                }
+
+                if (!Directory.Exists(ResultsRoot))
+                {
+                    Directory.CreateDirectory(ResultsRoot);
+                }
+
+                if (!Directory.Exists(DataRoot))
+                {
+                    Directory.CreateDirectory(DataRoot);
+                }
+
                 // Set our global scan name
                 CurrentScan.Name = ScanName;
                 GlobalScanName = ScanName;
