@@ -8,3 +8,8 @@
 # Exclude debug paths
 /Code/obj/Debug/*
 /Code/bin/Debug/*
+
+# Exclude build dirs
+Release/*
+/Code/obj/Release/*
+/Code/bin/Release/*
