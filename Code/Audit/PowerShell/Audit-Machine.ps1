@@ -26,3 +26,4 @@ try {
 
 # Add a probe object to our target
 $Target | Add-Member -MemberType NoteProperty -Name Audit -Value $(New-Audit);
+

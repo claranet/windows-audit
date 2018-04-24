@@ -9,6 +9,7 @@ LABEL maintainer="John George <john.george@claranet.uk>" \
 RUN powershell -NoProfile -ExecutionPolicy Bypass -Command " \
       Set-WinSystemLocale 'en-GB'; \
       Set-TimeZone 'GMT Standard Time'; \
+      winrm s winrm/config/client '@{TrustedHosts=\"*\"}'; \
       Invoke-Expression $(curl https://chocolatey.org/install.ps1 -UseBasicParsing | Select -ExpandProperty Content); \
       choco install -y git -params '\"/GitAndUnixToolsOnPath\"'; \
       choco install -y poshgit; \
