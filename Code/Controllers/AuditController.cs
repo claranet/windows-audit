@@ -327,6 +327,19 @@ namespace claranet_audit.Controllers
             return PartialView("ScanInfo", CurrentScan);
         }
 
+        // Method for shutting down the container
+        public IActionResult ShutdownContainer()
+        {
+            //Process.Start(@"C:\Windows\System32\shutdown.exe", "-s -t 1");
+            return RedirectToAction("Shutdown");
+        }
+
+        // Method for exporting data
+        public IActionResult ExportData()
+        {
+            return RedirectToAction("Export");
+        }
+
     }
 
     // Tools class
