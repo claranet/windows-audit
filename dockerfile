@@ -17,15 +17,8 @@ RUN powershell -NoProfile -ExecutionPolicy Bypass -Command " \
       choco install -y winscp; \
 "
 
-# Copy local project files across
-COPY ./Code C:/windows-audit
+# Copy build output folder to target
+COPY ./Code/bin/Release/netcoreapp2.0/win10-x64/* C:/claranet-audit
 
-#<<<<<< Needs more cowbell - set to run kestrel exe web application instead
-CMD "powershell \
--ExecutionPolicy Bypass \
--NoExit \
--Command \
-Write-Host '# Claranet Audit Container' -ForegroundColor Yellow; \
-Write-Host '# For more information and help please visit: https://github.com/claranet/windows-audit' -ForegroundColor Yellow; \
-cd C:\windows-audit \
-"
+# Run the audit controller
+CMD "C:/claranet-audit/claranet-audit.exe"
