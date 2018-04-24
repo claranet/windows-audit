@@ -12375,11 +12375,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "c:\\Users\\john\\Development_New\\claranet-audit\\Code\\claranet-audit.csproj",
+      "projectUniqueName": "C:\\Users\\john\\Development_New\\windows-audit\\Code\\claranet-audit.csproj",
       "projectName": "claranet-audit",
-      "projectPath": "c:\\Users\\john\\Development_New\\claranet-audit\\Code\\claranet-audit.csproj",
+      "projectPath": "C:\\Users\\john\\Development_New\\windows-audit\\Code\\claranet-audit.csproj",
       "packagesPath": "C:\\Users\\john\\.nuget\\packages\\",
-      "outputPath": "c:\\Users\\john\\Development_New\\claranet-audit\\Code\\obj\\",
+      "outputPath": "C:\\Users\\john\\Development_New\\windows-audit\\Code\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files\\dotnet\\sdk\\NuGetFallbackFolder"
