@@ -150,23 +150,32 @@ try {
 }
 
 # Make sure the container doesn't already exist
-if (((Invoke-Expression "docker ps -a") -Join "`r`n") -like "*claranet*audit*") {
+if (((Invoke-Expression "docker ps -a") -Join "`r`n") -like "*claranet:audit*") {
     
+    # Get the container IDs
+    $IDs = @();
+    (Invoke-Expression "docker ps -a") | %{
+        $Line = $_;
+        if ($Line -like "*claranet:audit*") {
+            $IDs += $($Line.Split(" ")[0]);
+        }
+    }
+
     Write-BuildMessage `
-        -Message "Clearing existing container 'claranet:audit'" `
+        -Message "Clearing existing container(s) with id(s) '$($IDs -join ", ")'" `
         -Stage DockerBuild `
         -State Info;
 
     try {
         # Stop the container
-        [Void](Invoke-Expression "docker stop claranet:audit");
+        [Void](Invoke-Expression "docker stop $($IDs -join " ")");
 
         # Remove the container
-        [Void](Invoke-Expression "docker rm claranet:audit");
+        [Void](Invoke-Expression "docker rm $($IDs -join " ")");
 
     } catch {
         Write-BuildMessage `
-            -Message "Build failed while trying to clear existing container with exception: $($_.Exception.Message)" `
+            -Message "Cleanup failed with exception: $($_.Exception.Message)" `
             -Stage DockerBuild `
             -State Failure;
         Exit(1);
@@ -232,9 +241,9 @@ Write-BuildMessage `
 try {
     # Invoke the run switching to bypass Windows 10 silent memory cap issue
     if ((Get-WmiObject "Win32_OperatingSystem").Caption.Contains("Windows 10")) {
-        docker run --memory 8GB --rm --publish 5001:5000 claranet:audit;
+        docker run --memory 8GB --rm --detach --publish 5001:5000 claranet:audit;
     } else {
-        docker run --rm --publish 5001:5000 claranet:audit;
+        docker run --rm --detach --publish 5001:5000 claranet:audit;
     }
     
     # Check the last result and throw if broken

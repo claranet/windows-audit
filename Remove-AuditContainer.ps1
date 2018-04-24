@@ -60,19 +60,28 @@ Write-BuildMessage `
     -State Info;
 
 # Make sure the container is gone
-if (((Invoke-Expression "docker ps -a") -Join "`r`n") -like "*claranet*audit*") {
+if (((Invoke-Expression "docker ps -a") -Join "`r`n") -like "*claranet:audit*") {
     
+    # Get the container IDs
+    $IDs = @();
+    (Invoke-Expression "docker ps -a") | %{
+        $Line = $_;
+        if ($Line -like "*claranet:audit*") {
+            $IDs += $($Line.Split(" ")[0]);
+        }
+    }
+
     Write-BuildMessage `
-        -Message "Clearing existing container 'claranet:audit'" `
+        -Message "Clearing existing container(s) with id(s) '$($IDs -join ", ")'" `
         -Stage DockerBuild `
         -State Info;
 
     try {
         # Stop the container
-        [Void](Invoke-Expression "docker stop claranet:audit");
+        [Void](Invoke-Expression "docker stop $($IDs -join " ")");
 
         # Remove the container
-        [Void](Invoke-Expression "docker rm claranet:audit");
+        [Void](Invoke-Expression "docker rm $($IDs -join " ")");
 
     } catch {
         Write-BuildMessage `
