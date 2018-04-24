@@ -332,7 +332,7 @@ namespace claranet_audit.Controllers
         public IActionResult ShutdownContainer()
         {
             //Process.Start(@"C:\Windows\System32\shutdown.exe", "-s -t 1");
-            return RedirectToAction("Shutdown");
+            return View("ShutdownMessage");
         }
 
         // Method for exporting data
