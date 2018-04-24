@@ -129,16 +129,11 @@ try {
         "--configuration 'Release'",
         "--self-contained",
         "--runtime 'win10-x64'",
-        "--verbosity m"
+        "--verbosity n"
     ) -Join " ";
     
     # Invoke the build
-    Invoke-Expression $Publish | %{
-        $Line = $_;
-        if ($Line) {
-            Write-BuildMessage -Message $Line -Stage DotNetBuild -State Info;
-        }
-    }
+    Invoke-Expression $Publish;
 
     # Write success
     Write-BuildMessage `
@@ -207,10 +202,11 @@ Write-BuildMessage `
 
 try {
     # Invoke the build
-    Invoke-Expression "docker build -t 'claranet:audit' .";
+    docker build -t 'claranet:audit' .
 
-    if ($?) {
-        throw;
+    # Check the last result and throw if broken
+    if ($LASTEXITCODE -gt 0) {
+        throw "(printed to stdout above)";
     }
 
     # Write success
@@ -221,7 +217,7 @@ try {
 
 } catch {
     Write-BuildMessage `
-        -Message "Build failed while trying create docker image with exception: (printed to stdout above)" `
+        -Message "Build failed while trying create docker image with exception: $($_.Exception.Message)" `
         -Stage DockerBuild `
         -State Failure;
     Exit(1);
@@ -235,12 +231,13 @@ Write-BuildMessage `
 
 try {
     # Invoke the run
-    Invoke-Expression "docker run -rm -p 5000:5001 claranet:audit" | %{
-        $Line = $_;
-        if ($Line) {
-            Write-BuildMessage -Message $Line -Stage DockerBuild -State Info;
-        }
+    docker run -rm -p 5000:5001 claranet:audit;
+
+    # Check the last result and throw if broken
+    if ($LASTEXITCODE -gt 0) {
+        throw "(printed to stdout above)";
     }
+
 } catch {
     Write-BuildMessage `
         -Message "Build failed while creating docker container with exception: $($_.Exception.Message)" `
@@ -263,6 +260,7 @@ try {
         -Message "Failed to launch application start page with exception: $($_.Exception.Message)" `
         -Stage PostBuild `
         -State Failure;
+    Exit(1);
 }
 
 # And we're done
@@ -270,7 +268,7 @@ $EndTime = Get-Date;
 $TS = New-TimeSpan $StartTime $EndTime;
 
 Write-BuildMessage `
-    -Message "Build completed in $($TS.ToString().Split(".")[0])" `
+    -Message "Build completed successfully in $($TS.ToString().Split(".")[0])" `
     -Stage PostBuild `
     -State Success;
 
