@@ -304,43 +304,11 @@ Function New-Probe {
         RemoteDiscoveredOS = $Null;
         TimeTaken = $Null;
         WinRmCredentialsTested = $(New-Object System.Collections.ArrayList);
-        WinRmCredentialsSuccessful = $(New-Object System.Collections.ArrayList);
+        WinRmCredentialsSuccessful = $Null;
         WmiCredentialsTested = $(New-Object System.Collections.ArrayList);
-        WmiCredentialsSuccessful = $(New-Object System.Collections.ArrayList);
+        WmiCredentialsSuccessful = $Null;
         SshCredentialsTested = $(New-Object System.Collections.ArrayList);
-        SshCredentialsSuccessful = $(New-Object System.Collections.ArrayList);
-        ICMP = $Null;
-        HostNames = $(New-Object System.Collections.ArrayList);
-        DnsAliases = $(New-Object System.Collections.ArrayList);
-        IPv4Addresses = $(New-Object System.Collections.ArrayList);
-        IPv6Addresses = $(New-Object System.Collections.ArrayList);
-        RemoteHealthy = $Null;
-        WinRmSuccess = $Null;
-        WinRmError = $Null;
-        WinRmUseTls = $True;
-        WmiSuccess = $Null;
-        WmiError = $Null;
-        SshSuccess = $Null;
-        SshError = $Null;
-        SshUseCredentials = $Null;
-        SshUsePrivateKey = $Null;
-        SshUsePrivateKeyPassphrase = $Null;
-    });
-}
-
-# Returns a audit object
-Function New-Audit {
-
-    return $([PSCustomObject][Ordered]@{
-        NmapDiscoveredOS = $Null;
-        RemoteDiscoveredOS = $Null;
-        TimeTaken = $Null;
-        WinRmCredentialsTested = $(New-Object System.Collections.ArrayList);
-        WinRmCredentialsSuccessful = $(New-Object System.Collections.ArrayList);
-        WmiCredentialsTested = $(New-Object System.Collections.ArrayList);
-        WmiCredentialsSuccessful = $(New-Object System.Collections.ArrayList);
-        SshCredentialsTested = $(New-Object System.Collections.ArrayList);
-        SshCredentialsSuccessful = $(New-Object System.Collections.ArrayList);
+        SshCredentialsSuccessful = $Null;
         ICMP = $Null;
         HostNames = $(New-Object System.Collections.ArrayList);
         DnsAliases = $(New-Object System.Collections.ArrayList);

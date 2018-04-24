@@ -62,7 +62,8 @@ While ($WinRmTesting) {
 
     # Build a PSCredential from the object
     $SecurePassword = $C.Password | ConvertTo-SecureString -AsPlainText -Force;
-    $PSCredential = New-Object System.Management.Automation.PSCredential($C.Username,$SecurePassword);
+    $Username = "{0}\{1}" -f $C.Domain,$C.Username;
+    $PSCredential = New-Object System.Management.Automation.PSCredential($Username,$SecurePassword);
 
     # Splat up the WinRM params for this check
     $WinRmParams = @{
@@ -80,7 +81,7 @@ While ($WinRmTesting) {
         # Check for null return
         if ($WinRmResult) {
             # Ok if we get this far we know the settings on this run were good
-            $Target.Probe.WinRmCredentialsSuccessful += $C.ID;
+            $Target.Probe.WinRmCredentialsSuccessful = $C.ID;
             $Target.Probe.WinRmCredentialsTested += $C.ID;
 
             # Store the OS result
@@ -157,7 +158,8 @@ While ($WmiTesting) {
 
     # Build a PSCredential from the object
     $SecurePassword = $C.Password | ConvertTo-SecureString -AsPlainText -Force;
-    $PSCredential = New-Object System.Management.Automation.PSCredential($C.Username,$SecurePassword);
+    $Username = "{0}\{1}" -f $C.Domain,$C.Username;
+    $PSCredential = New-Object System.Management.Automation.PSCredential($Username,$SecurePassword);
 
     # Splat up the WMI params for this check
     $WmiParams = @{
@@ -174,7 +176,7 @@ While ($WmiTesting) {
         # Check for null return
         if ($WmiResult) {
             # Ok if we get this far we know the settings on this run were good
-            $Target.Probe.WmiCredentialsSuccessful += $C.ID;
+            $Target.Probe.WmiCredentialsSuccessful = $C.ID;
             $Target.Probe.WmiCredentialsTested += $C.ID;
 
             # Store the OS result
@@ -266,7 +268,7 @@ While ($SshTesting) {
         # Check for null return
         if ($SshResult) {
             # Ok if we get this far we know the settings on this run were good
-            $Target.Probe.SshCredentialsSuccessful += $C.ID;
+            $Target.Probe.SshCredentialsSuccessful = $C.ID;
             $Target.Probe.SshCredentialsTested += $C.ID;
 
             # Store the OS result

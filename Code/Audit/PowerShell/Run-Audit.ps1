@@ -233,14 +233,27 @@ try{
                     # Post the host update
                     Write-HostUpdate -ID $AuditID -Status 201 -Errors $AuditErrors;
                 } else {
-                    # Ok everything went well, write out our host update
-                    Write-HostUpdate -ID $AuditID -Status 3;
 
-                    # And increment the audit success counter
-                    $Counter.AuditSuccessCount++;
+                    # Now, we need to check the returned result here in case we had errors but completed without terminating
+                    if ($Result.Audit.Errors) {
+                        # Ok everything went well, write out our host update
+                        Write-HostUpdate -ID $AuditID -Status 201 -Errors $Result.Audit.Errors;
 
-                    # And finally add our time taken to the audit averages
-                    $Counter.AuditTimeSpans += $Result.Audit.TimeTaken;
+                        # And increment the audit success counter
+                        $Counter.AuditFailedCount++;
+
+                        # And finally add our time taken to the audit averages
+                        $Counter.AuditTimeSpans += $Result.Audit.TimeTaken;
+                    } else {
+                        # Ok everything went well, write out our host update
+                        Write-HostUpdate -ID $AuditID -Status 3;
+
+                        # And increment the audit success counter
+                        $Counter.AuditSuccessCount++;
+
+                        # And finally add our time taken to the audit averages
+                        $Counter.AuditTimeSpans += $Result.Audit.TimeTaken;
+                    }
                 }
                 
             } catch {
