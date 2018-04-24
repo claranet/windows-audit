@@ -1,3 +1,18 @@
+<script>
+$(document).ready(function () {
+    $('input[type=checkbox]').click(function() {
+        var Check1 = $('#Check1').is(":checked");
+        var Check2 = $('#Check2').is(":checked");
+        var Check3 = $('#Check3').is(":checked");
+        var Check4 = $('#Check3').is(":checked");
+        if (Check1 && Check2 && Check3 and Check4) {
+            $('#ShutdownButton').prop('disabled', false);
+        } else {
+            $('#ShutdownButton').prop('disabled', true);
+        }
+    });
+});
+</script>
 <br />
 <div class="jumbotron">
     <h1 class="display-3"><span class="glyphicon glyphicon-check"></span>  Time to go</h1>
@@ -10,25 +25,25 @@
                 <fieldset class="form-group">
                     <div class="form-check">
                         <label class="form-check-label flow-text-size">
-                        <input class="form-check-input" type="checkbox" value="">
+                        <input id="Check1" class="form-check-input" type="checkbox" value="">
                         I have safely stored a copy of the private key file I was given when the appliance was turned on.
                         </label>
                     </div>
                     <div class="form-check">
                         <label class="form-check-label flow-text-size">
-                        <input class="form-check-input" type="checkbox" value="">
+                        <input id="Check2" class="form-check-input" type="checkbox" value="">
                         I have exported the results from my scan.
                         </label>
                     </div>
                     <div class="form-check">
                         <label class="form-check-label flow-text-size">
-                        <input class="form-check-input" type="checkbox" value="">
+                        <input id="Check3" class="form-check-input" type="checkbox" value="">
                         I am happy that any failed scans are okay to ignore and I don't want to resume scanning this list.
                         </label>
                     </div>
                     <div class="form-check">
                         <label class="form-check-label flow-text-size">
-                        <input class="form-check-input" type="checkbox" value="">
+                        <input id="Check4" class="form-check-input" type="checkbox" value="">
                         I understand that after clicking Shutdown this appliance will be returned to the state it started in.
                         </label>
                     </div>
@@ -38,5 +53,5 @@
     </div>
     </p>
     <hr class="my-5">
-    <a class="btn btn-primary btn-danger disabled" asp-controller="Audit" asp-action="Shutdown" role="button"><span class="glyphicon glyphicon-off"></span>&nbsp;&nbsp;Shutdown</a>
+    <a id="ShutdownButton" class="btn btn-primary btn-danger disabled" asp-controller="Audit" asp-action="Shutdown" role="button"><span class="glyphicon glyphicon-off"></span>&nbsp;&nbsp;Shutdown</a>
 </div>
