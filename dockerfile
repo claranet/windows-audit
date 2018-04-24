@@ -14,8 +14,6 @@ RUN powershell -NoProfile -ExecutionPolicy Bypass -Command " \
 "
 # Configure audit prereqs
 RUN powershell -NoProfile -ExecutionPolicy Bypass -Command " \
-      choco install -y git -params '\"/GitAndUnixToolsOnPath\"'; \
-      choco install -y poshgit; \
       choco install -y putty; \
       choco install -y winscp; \
 "
