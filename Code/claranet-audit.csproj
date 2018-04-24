@@ -15,4 +15,9 @@
     <DotNetCliToolReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Tools" Version="2.0.0" />
   </ItemGroup>
 
+  <!-- Copy supporting files to publish output on build -->
+  <ItemGroup>
+    <Content Include="Audit\**\*" CopyToPublishDirectory="Always" />
+  </ItemGroup>
+
 </Project>
