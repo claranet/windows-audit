@@ -254,6 +254,10 @@ try{
                         # And finally add our time taken to the audit averages
                         $Counter.AuditTimeSpans += $Result.Audit.TimeTaken;
                     }
+
+                    # Export our file anyway so we at least have a partial record of what happened
+                    $ExportPath = "{0}\Results\{1}.xml" -f $(Split-Path $PSScriptRoot),$Result.ID;
+                    $Target | Export-Clixml -Path $ExportPath -Force;
                 }
                 
             } catch {
