@@ -22,4 +22,4 @@ RUN powershell -NoProfile -ExecutionPolicy Bypass -Command " \
 COPY ./Code/bin/Release/netcoreapp2.0/win10-x64/* C:/claranet-audit/
 
 # Run the audit controller
-CMD "start 'C:\claranet-audit\claranet-audit.exe'"
+CMD "start 'C:\claranet-audit\publish\claranet-audit.exe'"
