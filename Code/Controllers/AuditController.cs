@@ -619,7 +619,6 @@ namespace claranet_audit.Controllers
         public int Familiarity {get; set;}
         public int Status {get; set;}
         public List<string> Errors = new List<string>();
-        public string AuditDataFilePath {get; set;}
 
         // Easy inline return of status text
         public string StatusString
