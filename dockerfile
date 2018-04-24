@@ -11,6 +11,9 @@ RUN powershell -NoProfile -ExecutionPolicy Bypass -Command " \
       Set-TimeZone 'GMT Standard Time'; \
       winrm s winrm/config/client '@{TrustedHosts=\"*\"}'; \
       Invoke-Expression $(curl https://chocolatey.org/install.ps1 -UseBasicParsing | Select -ExpandProperty Content); \
+"
+# Configure audit prereqs
+RUN powershell -NoProfile -ExecutionPolicy Bypass -Command " \
       choco install -y git -params '\"/GitAndUnixToolsOnPath\"'; \
       choco install -y poshgit; \
       choco install -y putty; \
