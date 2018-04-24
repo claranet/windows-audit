@@ -231,7 +231,7 @@ Write-BuildMessage `
 
 try {
     # Invoke the run
-    docker run -rm -p 5000:5001 claranet:audit;
+    docker run --rm --publish 5001:5000 claranet:audit;
 
     # Check the last result and throw if broken
     if ($LASTEXITCODE -gt 0) {
@@ -254,7 +254,7 @@ Write-BuildMessage `
 
 try {
     # Invoke the audit application page
-    Invoke-Expression "start 'Claranet Audit' 'http://localhost:5001'";
+    Start-Process "http://localhost:5001";
 } catch {
     Write-BuildMessage `
         -Message "Failed to launch application start page with exception: $($_.Exception.Message)" `
