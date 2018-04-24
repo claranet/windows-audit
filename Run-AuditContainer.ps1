@@ -230,9 +230,13 @@ Write-BuildMessage `
     -State Info;
 
 try {
-    # Invoke the run
-    docker run --rm --publish 5001:5000 claranet:audit;
-
+    # Invoke the run switching to bypass Windows 10 silent memory cap issue
+    if ((Get-WmiObject "Win32_OperatingSystem").Caption.Contains("Windows 10")) {
+        docker run --memory 8GB --rm --publish 5001:5000 claranet:audit;
+    } else {
+        docker run --rm --publish 5001:5000 claranet:audit;
+    }
+    
     # Check the last result and throw if broken
     if ($LASTEXITCODE -gt 0) {
         throw "(printed to stdout above)";
