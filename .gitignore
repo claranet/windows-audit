@@ -1,6 +1,10 @@
+# Development data exclusion
 /Code/Audit/Credentials/*
 /Code/Audit/Data/*
 /Code/Audit/Encryption/*
 /Code/Audit/Hosts/*
 /Code/Audit/Results/*
+
+# Exclude debug paths
 /Code/obj/Debug/*
+/Code/bin/Debug/*
