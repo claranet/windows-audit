@@ -1,15 +1,15 @@
 # Development data exclusion
-/Code/Audit/Credentials/*
-/Code/Audit/Data/*
-/Code/Audit/Encryption/*
-/Code/Audit/Hosts/*
-/Code/Audit/Results/*
+Code/Audit/Credentials/*
+Code/Audit/Data/*
+Code/Audit/Encryption/*
+Code/Audit/Hosts/*
+Code/Audit/Results/*
 
 # Exclude debug paths
-/Code/obj/Debug/*
-/Code/bin/Debug/*
+Code/obj/Debug/*
+Code/bin/Debug/*
 
 # Exclude build dirs
-Release/*
-/Code/obj/Release/*
-/Code/bin/Release/*
+Code/obj/netcoreapp2.0/*
+Code/obj/Release/*
+Code/bin/Release/*
