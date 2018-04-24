@@ -12,6 +12,7 @@ using System.Security.Cryptography;
 using System.Web;
 using Newtonsoft.Json;
 using System.Text;
+using System.IO.Compression;
 
 namespace claranet_audit.Controllers
 {
@@ -337,7 +338,37 @@ namespace claranet_audit.Controllers
         // Method for exporting data
         public IActionResult ExportData()
         {
-            return RedirectToAction("Export");
+            // Ok first let's zip up all the files
+            string ZipFileName = String.Format("{0}-data.zip", GlobalScanName.ToLower());
+            string ZipFilePath = Path.Combine(ResultsRoot, ZipFileName);
+            ZipFile.CreateFromDirectory(ResultsRoot, ZipFilePath, CompressionLevel.Fastest, false);
+
+            // Read up the bytes from the exported zip file and remove it
+            byte[] UnencryptedBytes = System.IO.File.ReadAllBytes(ZipFilePath);
+            System.IO.File.Delete(ZipFilePath);
+            
+            // Build our crypto service provider and params
+            CspParameters csp = new CspParameters();
+            csp.ProviderType = 1;
+            RSACryptoServiceProvider rsa = new RSACryptoServiceProvider(csp);
+            
+            // Load up the public key
+            string PublicKey = System.IO.File.ReadAllText(PublicKeyFilePath);
+            rsa.FromXmlString(PublicKey);
+
+            // Stream up the encrypted content for the client download
+            byte[] ExportBytes = rsa.Encrypt(UnencryptedBytes, false);
+            
+            // Get our attachment content-disposition sorted
+            var cd = new System.Net.Mime.ContentDisposition
+            {
+                FileName = String.Format("{0}-export.auditdata", GlobalScanName.ToLower()),
+                Inline = true,
+            };
+
+            // Add the cd response header and return the stream
+            Response.Headers.Add("Content-Disposition", cd.ToString());
+            return File(ExportBytes, "application/octet-stream");
         }
 
     }
