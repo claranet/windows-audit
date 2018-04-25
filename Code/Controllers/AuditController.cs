@@ -331,7 +331,15 @@ namespace claranet_audit.Controllers
         // Method for shutting down the container
         public IActionResult ShutdownContainer()
         {
-            //Process.Start(@"C:\Windows\System32\shutdown.exe", "-s -t 1");
+            // Quick cleanup in case someone runs the container without the --rm switch
+            Directory.Delete(EncryptionRoot);
+            Directory.Delete(CredentialsRoot);
+            Directory.Delete(HostsRoot);
+            Directory.Delete(ResultsRoot);
+            Directory.Delete(DataRoot);
+
+            // Begin the shutdown process and return the shutdown view
+            Process.Start(@"C:\Windows\System32\shutdown.exe", "-s -t 1");
             return View("ShutdownMessage");
         }
 
