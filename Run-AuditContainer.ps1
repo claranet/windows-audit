@@ -211,7 +211,7 @@ Write-BuildMessage `
 
 try {
     # Invoke the build
-    docker build -t 'claranet:audit' .
+    docker build --memory 8GB -t 'claranet:audit' .
 
     # Check the last result and throw if broken
     if ($LASTEXITCODE -gt 0) {
@@ -241,9 +241,9 @@ Write-BuildMessage `
 try {
     # Invoke the run switching to bypass Windows 10 silent memory cap issue
     if ((Get-WmiObject "Win32_OperatingSystem").Caption.Contains("Windows 10")) {
-        docker run --memory 8GB --rm --detach --publish 5001:5000 claranet:audit;
+        docker run -itd -p 5001:5000 --memory 8GB claranet:audit;
     } else {
-        docker run --rm --detach --publish 5001:5000 claranet:audit;
+        docker run -itd -p 5001:5000 claranet:audit;
     }
     
     # Check the last result and throw if broken
@@ -267,7 +267,7 @@ Write-BuildMessage `
 
 try {
     # Invoke the audit application page
-    Start-Process "http://localhost:5001";
+    Start-Process "http://127.0.0.1:5001";
 } catch {
     Write-BuildMessage `
         -Message "Failed to launch application start page with exception: $($_.Exception.Message)" `

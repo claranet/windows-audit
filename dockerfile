@@ -5,6 +5,9 @@ LABEL maintainer="John George <john.george@claranet.uk>" \
       readme.md="https://github.com/claranet/windows-audit/README.md" \
       description="This dockerfile will build a container to host Audit scripting."
 
+# Configure the working directory
+WORKDIR C:\\claranet-audit
+
 # Configure the container os
 RUN powershell -NoProfile -ExecutionPolicy Bypass -Command " \
       Set-WinSystemLocale 'en-GB'; \
@@ -18,8 +21,8 @@ RUN powershell -NoProfile -ExecutionPolicy Bypass -Command " \
       choco install -y winscp; \
 "
 
-# Copy build output folder to target
-COPY ./Code/bin/Release/netcoreapp2.0/win10-x64/* C:/claranet-audit/
+# Copy the release build output folder to the container
+COPY ./Code/bin/Release/netcoreapp2.0/win10-x64/publish/ ./
 
-# Run the audit controller
-CMD "start 'C:\claranet-audit\publish\claranet-audit.exe'"
+# And start the audit application
+CMD "claranet-audit.exe"
