@@ -9,7 +9,7 @@ The serialised data for servers will remain cached until another gathering opera
 Prerequisites
 ---------
 ##### Calling Client
-Connections over WinRM will require the [Windows Management Framework](https://support.microsoft.com/en-gb/help/968929/windows-management-framework-windows-powershell-2-0--winrm-2-0--and-bi) v2 as a minimum and a Windows credential that is valid on the target machine. Excel compilation does _not_ require Excel but you will require [dfinke's ImportExcel module](https://github.com/dfinke/ImportExcel). For SQL compilation any version of Microsoft SQL Server above 2005 will be required, as well as the [SQL Server PowerShell module](https://docs.microsoft.com/en-us/sql/ssms/download-sql-server-ps-module).  
+Connections over WinRM will require the [Windows Management Framework](https://www.microsoft.com/en-us/download/details.aspx?id=50395) v5 as a minimum and a Windows credential that is valid on the target machine. Excel compilation does _not_ require Excel but you will require [dfinke's ImportExcel module](https://github.com/dfinke/ImportExcel). For SQL compilation any version of Microsoft SQL Server above 2005 will be required, as well as the [SQL Server PowerShell module](https://docs.microsoft.com/en-us/sql/ssms/download-sql-server-ps-module).  
 
 ##### Target Server
 Connections over WinRM will require the [Windows Management Framework](https://support.microsoft.com/en-gb/help/968929/windows-management-framework-windows-powershell-2-0--winrm-2-0--and-bi) v2 as a minimum with TCP port `5985` allowed from the calling client. Powershell v2 and above has been verified, v1 has not been tested (but _may_ work).
