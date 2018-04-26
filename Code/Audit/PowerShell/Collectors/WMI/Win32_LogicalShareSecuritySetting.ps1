@@ -64,7 +64,8 @@ return @($(Get-WMIObject -ComputerName $Target -Credential $Credential -Class "W
                 # Add to our collection of ACLs
                 $FSAR = New-Object Security.AccessControl.FileSystemAccessRule($UserName, $ACE.AccessMask, $ACE.AceType);
 
-                $SharePermissions += $(New-Object PSCustomObject -Property @{
+                # Return our object to the pipeline
+                $(New-Object PSCustomObject -Property @{
                     MachineIdentifier = $MachineIdentifier;
                     ShareName         = $Share.Name;
                     FileSystemRights  = $FSAR.FileSystemRights.ToString();

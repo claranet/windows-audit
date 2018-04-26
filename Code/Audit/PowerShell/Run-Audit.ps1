@@ -8,17 +8,22 @@ Param(
     # Json encoded string of hosts
     [Parameter(Mandatory=$True)]
     [ValidateNotNullOrEmpty()]
-    [String]$EncodedHostsPath
+    [String]$EncodedHostsPath,
+
+    # Root directory path for where this is running
+    [Parameter(Mandatory=$True)]
+    [ValidateNotNullOrEmpty()]
+    [String]$RootDirectory
 )
 
 # Set E|W|P prefs
 $ErrorActionPreference = "Stop";
-$WarningPreference = "SilentlyContinue";
-$ProgressPreference = "SilentlyContinue";
+$WarningPreference     = "SilentlyContinue";
+$ProgressPreference    = "SilentlyContinue";
 
 # Import the utils module
 try {
-    Import-Module "$PSScriptRoot\Utility.psm1" -Force -DisableNameChecking;
+    Import-Module "$RootDirectory\PowerShell\Utility.psm1" -Force -DisableNameChecking;
 } catch {
     [Console]::Error.WriteLine("Error importing utility module: $($_.Exception.Message)");
     Exit(1);
@@ -43,12 +48,12 @@ try {
 # Bring in the audit/probe scripts
 try {
     # Network probe
-    $ProbeScriptPath = (Resolve-Path "$PSScriptRoot\Probe-Machine.ps1").Path;
+    $ProbeScriptPath = (Resolve-Path "$RootDirectory\PowerShell\Probe-Machine.ps1").Path;
     $ProbeScriptContent = Get-Content $ProbeScriptPath -Raw;
     $ProbeScriptBlock = [ScriptBlock]::Create($ProbeScriptContent);
 
     # Audit scan
-    $AuditScriptPath = (Resolve-Path "$PSScriptRoot\Audit-Machine.ps1").Path;
+    $AuditScriptPath = (Resolve-Path "$RootDirectory\PowerShell\Audit-Machine.ps1").Path;
     $AuditScriptContent = Get-Content $AuditScriptPath -Raw;
     $AuditScriptBlock = [ScriptBlock]::Create($AuditScriptContent);
 }
@@ -65,7 +70,7 @@ try {
     [System.Collections.ArrayList]$Probes = @();
 
     # Audit
-    $AuditRunspacePool = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspacePool(1, $ThreadCount, $Host);
+    $AuditRunspacePool = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspacePool(1, 64, $Host);
     $AuditRunspacePool.Open();
     [System.Collections.ArrayList]$Audits = @();
 }
@@ -85,6 +90,7 @@ try {
         $ProbeParams = @{
             Target      = $HostRef;
             Credentials = $Credentials;
+            RootDirectory = $RootDirectory;
         };
                 
         # Create new probe
@@ -95,7 +101,7 @@ try {
         Write-HostUpdate -ID $HostRef.ID -Status 1;
 
         # Add it to the job queue and spark it up
-        [Void]($ProbeJobs.Add($([PSCustomObject]@{
+        [Void]($Probes.Add($([PSCustomObject]@{
             ID       = $Hostref.ID;
             Pipeline = $Probe;
             Result   = $Probe.BeginInvoke();
@@ -105,13 +111,6 @@ try {
 catch {
     [Console]::Error.WriteLine("Error adding probes to runspace queue: $($_.Exception.Message)");
     Exit(1);
-}
-finally {
-    # Close out the runspace pools and dispose if we have an issue
-    $AuditRunspacePool.Close();
-    $AuditRunspacePool.Dispose();
-    $ProbeRunspacePool.Close();
-    $ProbeRunspacePool.Dispose();
 }
 
 # Start streaming the results from the runspace pool following up as required
@@ -140,7 +139,7 @@ try{
             # Grab the completed probe from the pipeline and create some stdout properties
             $CompletedProbe = $_;
             $ProbeID        = $CompletedProbe.ID;
-            $ProbeErrors    = New-Object System.Collections.ArrayList;
+            $ProbeErrors    = @();
 
             # Need to trap here in case we get an unwrapped ErrorRecord
             try {
@@ -148,23 +147,13 @@ try{
                 $Result = $CompletedProbe.Pipeline.EndInvoke($CompletedProbe.Result);
 
                 # Check the error stream for this job
-                if ($CompletedProbe.Pipeline.HadErrors) {
-                    # Ok first lets increment the probe failed counters
-                    $Counter.ProbeFailedCount++;
-                    $Counter.AuditQueueCount++;
-                    $Counter.AuditFailedCount++;
+                if ($Result.Probe.RemoteHealthy) {
                     
-                    # Enumerate the errors and push to our collection
-                    $CompletedProbe.Pipeline.Streams.Error | %{
-                        [Void]($ProbeErrors.Add($_.Exception.Message));
-                    }
-                    # Post the host update
-                    Write-HostUpdate -ID $ProbeID -Status 101 -Errors $ProbeErrors;
-                } else {
                     # Ok everything went well, create audit params
                     $AuditParams = @{
                         Target      = $Result;
                         Credentials = $Credentials;
+                        RootDirectory = $RootDirectory;
                     };
                             
                     # Create new audit
@@ -175,7 +164,7 @@ try{
                     Write-HostUpdate -ID $ProbeID -Status 2;
 
                     # Add it to the job queue and spark it up
-                    [Void]($AuditJobs.Add($([PSCustomObject]@{
+                    [Void]($Audits.Add($([PSCustomObject]@{
                         ID       = $ProbeID;
                         Pipeline = $Audit;
                         Result   = $Audit.BeginInvoke();
@@ -187,6 +176,32 @@ try{
 
                     # And finally add our time taken to the probe averages
                     $Counter.ProbeTimeSpans += $Result.Probe.TimeTaken;
+
+                } else {
+
+                    # Ok first lets increment the probe failed counters
+                    $Counter.ProbeFailedCount++;
+                    $Counter.AuditQueueCount++;
+                    $Counter.AuditFailedCount++;
+
+                    # Push any WMI errors
+                    if ($Result.Probe.WmiError) {
+                        $ProbeErrors += $Result.Probe.WmiError;
+                    }
+                    
+                    # Push any WinRM errors
+                    if ($Result.Probe.WinRmError) {
+                        $ProbeErrors += $Result.Probe.WinRmError;
+                    }
+
+                    # Push any SSH errors
+                    if ($Result.Probe.SshRmError) {
+                        $ProbeErrors += $Result.Probe.SshRmError;
+                    }
+
+                    # Post the host update
+                    Write-HostUpdate -ID $ProbeID -Status 101 -Errors $ProbeErrors;
+
                 }
             } catch {
                 # Ok first lets increment the probe failed counters
@@ -195,7 +210,7 @@ try{
                 $Counter.AuditFailedCount++;
 
                 # We had an unwrapped error here, push it to the array
-                [Void]($ProbeErrors.Add($_.Exception.Message));
+                $ProbeErrors += $_.Exception.Message;
 
                 # And write the host status update
                 Write-HostUpdate -ID $ProbeID -Status 101 -Errors $ProbeErrors;
@@ -214,7 +229,7 @@ try{
             # Grab the completed audit from the pipeline and create some stdout properties
             $CompletedAudit = $_;
             $AuditID        = $CompletedAudit.ID;
-            $AuditErrors    = New-Object System.Collections.ArrayList;
+            $AuditErrors    = @();
 
             # Need to trap here in case we get an unwrapped ErrorRecord
             try {
@@ -228,7 +243,7 @@ try{
                     
                     # Enumerate the errors and push to our collection
                     $CompletedAudit.Pipeline.Streams.Error | %{
-                        [Void]($AuditErrors.Add($_.Exception.Message));
+                        $AuditErrors += $_.Exception.Message;
                     }
                     # Post the host update
                     Write-HostUpdate -ID $AuditID -Status 201 -Errors $AuditErrors;
@@ -256,8 +271,8 @@ try{
                     }
 
                     # Export our file anyway so we at least have a partial record of what happened
-                    $ExportPath = "{0}\Results\{1}.xml" -f $(Split-Path $PSScriptRoot),$Result.ID;
-                    $Target | Export-Clixml -Path $ExportPath -Force;
+                    $ExportPath = "{0}\Results\{1}.xml" -f $RootDirectory,$Result.ID;
+                    $Result | Export-Clixml -Path $ExportPath -Force;
                 }
                 
             } catch {
@@ -265,7 +280,7 @@ try{
                 $Counter.AuditFailedCount++;
 
                 # We had an unwrapped error here, push it to the array
-                [Void]($AuditErrors.Add($_.Exception.Message));
+                $AuditErrors += $_.Exception.Message;
 
                 # And write the host status update
                 Write-HostUpdate -ID $AuditID -Status 201 -Errors $AuditErrors;
@@ -277,18 +292,14 @@ try{
 
         # And write our global status update
         Write-StatusUpdate -Counter $Counter;
+
+        # Loop burn protection
+        Start-Sleep -Milliseconds 300;
     }
     
 } catch {
     [Console]::Error.WriteLine("Error streaming runspace queues: $($_.Exception.Message)");
     Exit(1);
-}
-finally {
-    # Close out the runspace pools and dispose if we have an issue
-    $AuditRunspacePool.Close();
-    $AuditRunspacePool.Dispose();
-    $ProbeRunspacePool.Close();
-    $ProbeRunspacePool.Dispose();
 }
 
 # Fin

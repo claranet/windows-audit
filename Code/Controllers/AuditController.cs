@@ -533,115 +533,124 @@ namespace claranet_audit.Controllers
         // Synchronous scan worker method
         public static void Scan()
         {
-            // Ok we need to set some scan properties
-            AuditController.CurrentScan.InProgress = true;
-            AuditController.CurrentScan.Status = 1;
-            AuditController.CurrentScan.TotalHostsCount = AuditController.HostsCache.Count;
-
-            // Filter our hosts list
-            var HostsToScan = AuditController.HostsCache.Where(i => 
-                AuditController.HostsCache.All(e => e.ID != i.ID
-            )); 
-
-            // Serialise the hosts and credentials
-            string HostsJson = JsonConvert.SerializeObject(HostsToScan);
-            string CredentialsJson = JsonConvert.SerializeObject(AuditController.CredentialsCache);
-
-            // Write the data to disk because passing in would be too long
-            string HostsOutput = Path.Combine(AuditController.DataRoot, "hosts.json");
-            string CredsOutput = Path.Combine(AuditController.DataRoot, "creds.json");
-            System.IO.File.WriteAllText(HostsOutput, HostsJson);
-            System.IO.File.WriteAllText(CredsOutput, CredentialsJson);
-
-            // Build our command string
-            string WindowsDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
-            string PowerShell = Path.Combine(WindowsDir, "System32", "WindowsPowerShell", "v1.0", "PowerShell.exe");
-            
-            string PowerShellScriptPath = Path.Combine(AuditController.PowerShellRoot, "Run-Audit.ps1");
-            string u_PowerShellArgs = "-NoLogo -NoProfile -NoExit -ExecutionPolicy Bypass -Command \"& '{0}' '{1}' '{2}'"; 
-            string f_PowerShellArgs = String.Format(u_PowerShellArgs, PowerShellScriptPath, CredsOutput, HostsOutput);
-
-            // Populate our process start info
-            AuditController.ScanProcessInfo.CreateNoWindow = false;
-            AuditController.ScanProcessInfo.FileName = PowerShell;
-            AuditController.ScanProcessInfo.Arguments = f_PowerShellArgs;
-            AuditController.ScanProcessInfo.UseShellExecute = false;
-            AuditController.ScanProcessInfo.RedirectStandardError = true;
-            AuditController.ScanProcessInfo.RedirectStandardOutput = true;
-            AuditController.ScanProcess.StartInfo = AuditController.ScanProcessInfo;
-
-            // Start the scan
-            AuditController.ScanProcess.Start();
-
-            // Wait while the process is running and update the results
-            while (!AuditController.ScanProcess.HasExited)
+            try 
             {
-                // Grab the line from stdout
-                string s = AuditController.ScanProcess.StandardOutput.ReadLine();
+                // Ok we need to set some scan properties
+                AuditController.CurrentScan.InProgress = true;
+                AuditController.CurrentScan.Status = 1;
+                AuditController.CurrentScan.TotalHostsCount = AuditController.HostsCache.Count;
 
-                // If the line starts with UPDATE: - parse it
-                if (!String.IsNullOrEmpty(s))
+                // Filter our hosts list
+                //var HostsToInclude = AuditController.HostsCache.Where(i => i.Operand == ">");
+                //var HostsToExclude = AuditController.HostsCache.Where(i => i.Operand == "<").ToList();
+                //var HostsToScan = HostsToInclude.Where(i => (HostsToExclude.Exists(e => e.ID == i.ID) == false));
+
+                // Serialise the hosts and credentials
+                string HostsJson = JsonConvert.SerializeObject(AuditController.HostsCache);
+                string CredentialsJson = JsonConvert.SerializeObject(AuditController.CredentialsCache);
+
+                // Write the data to disk because passing in would be too long
+                string HostsOutput = Path.Combine(AuditController.DataRoot, "hosts.json");
+                string CredsOutput = Path.Combine(AuditController.DataRoot, "creds.json");
+                System.IO.File.WriteAllText(HostsOutput, HostsJson);
+                System.IO.File.WriteAllText(CredsOutput, CredentialsJson);
+
+                // Build our command string
+                string WindowsDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+                string PowerShell = Path.Combine(WindowsDir, "System32", "WindowsPowerShell", "v1.0", "PowerShell.exe");
+                
+                string PowerShellScriptPath = Path.Combine(AuditController.PowerShellRoot, "Run-Audit.ps1");
+                string u_PowerShellArgs = "-NoLogo -NoProfile -NoExit -ExecutionPolicy Bypass -Command \"& '{0}' '{1}' '{2}' '{3}'"; 
+                string f_PowerShellArgs = String.Format(u_PowerShellArgs, PowerShellScriptPath, CredsOutput, HostsOutput, StorageRoot);
+
+                // Populate our process start info
+                AuditController.ScanProcessInfo.CreateNoWindow = false;
+                AuditController.ScanProcessInfo.FileName = PowerShell;
+                AuditController.ScanProcessInfo.Arguments = f_PowerShellArgs;
+                AuditController.ScanProcessInfo.UseShellExecute = false;
+                AuditController.ScanProcessInfo.RedirectStandardError = true;
+                AuditController.ScanProcessInfo.RedirectStandardOutput = true;
+                AuditController.ScanProcess.StartInfo = AuditController.ScanProcessInfo;
+
+                // Start the scan
+                AuditController.ScanProcess.Start();
+
+                // Wait while the process is running and update the results
+                while (!AuditController.ScanProcess.HasExited)
                 {
-                    if (s.Contains("SCANUPDATE:"))
+                    // Grab the line from stdout
+                    string s = AuditController.ScanProcess.StandardOutput.ReadLine();
+
+                    // If the line starts with UPDATE: - parse it
+                    if (!String.IsNullOrEmpty(s))
                     {
-                        // Cast to a dynamic object so we can pluck out what we're after
-                        dynamic u = JsonConvert.DeserializeObject<dynamic>(s.Replace("SCANUPDATE:",""));
+                        if (s.Contains("SCANUPDATE:"))
+                        {
+                            // Cast to a dynamic object so we can pluck out what we're after
+                            dynamic u = JsonConvert.DeserializeObject<dynamic>(s.Replace("SCANUPDATE:",""));
 
-                        // Time remaining
-                        AuditController.CurrentScan.EstimatedSecondsRemaining = u.EstimatedSecondsRemaining;
+                            // Time remaining
+                            AuditController.CurrentScan.EstimatedSecondsRemaining = u.EstimatedSecondsRemaining;
 
-                        // Probes
-                        AuditController.CurrentScan.ProbeSuccessCount = u.ProbeSuccessCount;
-                        AuditController.CurrentScan.ProbeFailedCount = u.ProbeFailedCount;
-                       
-                        // Audits
-                        AuditController.CurrentScan.AuditQueueCount = u.AuditQueueCount;
-                        AuditController.CurrentScan.AuditSuccessCount = u.AuditSuccessCount;
-                        AuditController.CurrentScan.AuditFailedCount = u.AuditFailedCount;
+                            // Probes
+                            AuditController.CurrentScan.ProbeSuccessCount = u.ProbeSuccessCount;
+                            AuditController.CurrentScan.ProbeFailedCount = u.ProbeFailedCount;
                         
-                    }
-                    else if (s.Contains("HOSTUPDATE:"))
-                    {
-                        // Cast to a dynamic object so we can pluck out what we're after
-                        dynamic u = JsonConvert.DeserializeObject<dynamic>(s.Replace("HOSTUPDATE:",""));
+                            // Audits
+                            AuditController.CurrentScan.AuditQueueCount = u.AuditQueueCount;
+                            AuditController.CurrentScan.AuditSuccessCount = u.AuditSuccessCount;
+                            AuditController.CurrentScan.AuditFailedCount = u.AuditFailedCount;
+                            
+                        }
+                        else if (s.Contains("HOSTUPDATE:"))
+                        {
+                            // Cast to a dynamic object so we can pluck out what we're after
+                            dynamic u = JsonConvert.DeserializeObject<dynamic>(s.Replace("HOSTUPDATE:",""));
 
-                        // Update the host with the current info
-                        AuditController.HostsCache.Where(h => h.ID == u.ID).ToList().ForEach(htu => 
-                            {
-                                htu.Status = u.Status;
-                                htu.Errors = u.Errors;
-                            }
-                        );
-                    }
-                    else
-                    {
-                        // ¯\_(ツ)_/¯
+                            // Update the host with the current info
+                            AuditController.HostsCache.Where(h => h.ID == u.ID).ToList().ForEach(htu => 
+                                {
+                                    htu.Status = u.Status;
+                                    htu.Errors = u.Errors;
+                                }
+                            );
+                        }
+                        else
+                        {
+                            // ¯\_(ツ)_/¯
+                        }
                     }
                 }
-            }
 
-            // If the exit code is non zero, grab the error and update the scan info
-            if (AuditController.ScanProcess.ExitCode > 0)
-            {
-                AuditController.CurrentScan.Status = 2;
-                AuditController.CurrentScan.ScanError = AuditController.ScanProcess.StandardError.ReadToEnd();
-            }
-            else
-            {
-                // Ok we're completed ok but let's check and see whether there were any host errors
-                if (AuditController.HostsCache.Count(h => h.Errors.Count > 0) > 0)
+                // If the exit code is non zero, grab the error and update the scan info
+                if (AuditController.ScanProcess.ExitCode > 0)
                 {
-                    AuditController.CurrentScan.Status = 4;
+                    AuditController.CurrentScan.Status = 2;
+                    AuditController.CurrentScan.ScanError = AuditController.ScanProcess.StandardError.ReadToEnd();
                 }
                 else
                 {
-                    AuditController.CurrentScan.Status = 3;
+                    // Ok we're completed ok but let's check and see whether there were any host errors
+                    if (AuditController.HostsCache.Count(h => h.Errors.Count > 0) > 0)
+                    {
+                        AuditController.CurrentScan.Status = 4;
+                    }
+                    else
+                    {
+                        AuditController.CurrentScan.Status = 3;
+                    }
                 }
-            }
 
-            // Stop the scan and close the process
-            AuditController.CurrentScan.InProgress = false;
-            AuditController.ScanProcess.Close();
+                // Stop the scan and close the process
+                AuditController.CurrentScan.InProgress = false;
+                AuditController.ScanProcess.Close();
+            }
+            catch (Exception e)
+            {
+                // Set the scan error and info
+                AuditController.CurrentScan.Status = 2;
+                AuditController.CurrentScan.ScanError = e.ToString();
+            }
         }
     }
 

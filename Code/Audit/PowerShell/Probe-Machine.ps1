@@ -8,141 +8,87 @@ Param(
     # Credentials object
     [Parameter(Mandatory=$True)]
     [ValidateNotNullOrEmpty()]
-    [System.Object[]]$Credentials
+    [System.Object[]]$Credentials,
+
+    # Root directory path for where this is running
+    [Parameter(Mandatory=$True)]
+    [ValidateNotNullOrEmpty()]
+    [String]$RootDirectory
 )
 
 # Set E|P|W prefs and start time
 $ErrorActionPreference = "Stop";
-$ProgressPreference = "SilentlyContinue";
-$WarningPreference = "SilentlyContinue";
-$StartTime = Get-Date;
+$ProgressPreference    = "SilentlyContinue";
+$WarningPreference     = "SilentlyContinue";
+$StartTime             = Get-Date;
+
+# Rehydrate our errors object
+$Target = $Target | Select -Property * -ExcludeProperty Errors;
+$Target | Add-Member -MemberType NoteProperty -Name Errors -Value @();
 
 # Import the utils module
 try {
-    Import-Module "$PSScriptRoot\Utility.psm1" -Force -DisableNameChecking;
+    Import-Module "$RootDirectory\PowerShell\Utility.psm1" -Force -DisableNameChecking;
 } catch {
-    throw "[$(Get-Date -f "dd/MM/yy-HH:mm:ss")] [Probe Error] Error importing utility module: $($_.Exception.Message)";
+    $E = "[$(Get-Date -f "dd/MM/yy-HH:mm:ss")] [Probe Init Error] Importing utility module failed with exception: $($_.Exception.Message)";
+    $Target.Errors += $E;
+    return $Target;
 }
 
 # Add a probe object to our target
-$Target | Add-Member -MemberType NoteProperty -Name Probe -Value $(New-Probe);
-
-# Get some key:value properties for this target
-$Target.Probe.ICMP = Test-IcmpPing -Endpoint $Target.Endpoint;
-$Target.Probe.NmapDiscoveredOS = Nmap-TargetOS -Endpoint $Target.Endpoint;
-
-# Resolve the endpoints for this target and add them to the target probe object
-$ResolvedEndpoints = Resolve-Endpoints -Endpoint $Target.Endpoint;
-$Target.Probe.HostNames = $ResolvedEndpoints.HostNames;
-$Target.Probe.DnsAliases = $ResolvedEndpoints.DnsAliases;
-$Target.Probe.IPv4Addresses = $ResolvedEndpoints.IPv4Addresses;
-$Target.Probe.IPv6Addresses = $ResolvedEndpoints.IPv6Addresses;
-
-# Set ourselves a WinRM loop controller
-$WinRmTesting  = $True;
-
-# Loop while we resolve the possible WinRM connection options
-While ($WinRmTesting) {
-
-    # Ok first we need to resolve which credential we're using
-    if (!$Target.Probe.WinRmCredentialsTested) {
-        # Not tried anything yet, get the known or default credential
-        $C = $(if ($Target.Credential){
-            $Credentials | ?{$_.ID -eq $Target.Credential};
-        } else {
-            $Credentials | ?{$_.IsDefault -and $_.Type.Contains("Windows")};
-        });
-    } else {
-        # Ok we've tried credentials previously to this, get the next one
-        $C = $Credentials | ?{
-            $Target.Probe.WinRmCredentialsTested -notcontains $_.ID -and
-            $_.Type.Contains("Windows")
-        } | Select -First 1;
-    }
-
-    # Build a PSCredential from the object
-    $SecurePassword = $C.Password | ConvertTo-SecureString -AsPlainText -Force;
-    $Username = "{0}\{1}" -f $C.Domain,$C.Username;
-    $PSCredential = New-Object System.Management.Automation.PSCredential($Username,$SecurePassword);
-
-    # Splat up the WinRM params for this check
-    $WinRmParams = @{
-        Target            = $Target.Endpoint;
-        Credential        = $PSCredential;
-        ScriptPath        = "$PSScriptRoot\Collectors\WinRm\_ConnectionCheck.ps1";
-        MachineIdentifier = $([Guid]::NewGuid().Guid);
-        UseSsl            = $Target.Probe.WinRmUseTls;
-    }
-
-    # Now execute the check and act on the results
-    try {
-        $WinRmResult = .\Invoke-WinRM.ps1 @WinRmParams;
-    
-        # Check for null return
-        if ($WinRmResult) {
-            # Ok if we get this far we know the settings on this run were good
-            $Target.Probe.WinRmCredentialsSuccessful = $C.ID;
-            $Target.Probe.WinRmCredentialsTested += $C.ID;
-
-            # Store the OS result
-            $Target.Probe.RemoteDiscoveredOS = $WinRmResult;
-
-            # Set WinRM to successful
-            $Target.Probe.WinRmSuccess = $True;
-
-            # Stop the loop
-            $WinRmTesting = $False;
-        } else {
-            throw "Target returned a null value for the connection check.";
-        }
-
-    } catch {
-        # Grab the exception from the pipeline so we don't lose it
-        $E = $_.Exception.Message
-
-        # Branch for testing TLS
-        if ($Target.Probe.WinRmUseTls) {
-            # Ok check if the connection worked but the credential failed
-            if ($_.Exception.Message.Contains("Access Denied")) {
-                # We now know to use TLS going forward but not this credential
-                $Target.Probe.WinRmCredentialsTested += $C.ID;
-            } else {
-                # We know TLS doesn't work but not whether this credential does
-                $Target.Probe.WinRmUseTls = $False;
-            }
-        } 
-        # Branch for testing HTTP
-        else { 
-            # Ok check if the connection worked but the credential failed
-            if ($E.Contains("Access Denied")) {
-                # We now know this credential doesn't work
-                $Target.Probe.WinRmCredentialsTested += $C.ID;
-            } else {
-                # Ok something else is wrong with WinRM here, try and parse the message
-                if (([Xml]$E).DocumentElement.Message) {
-                    $Target.Probe.WinRmError = ([Xml]$E).DocumentElement.Message;
-                } else {
-                    $Target.Probe.WinRmError = $E;
-                }
-                
-                # Set WinRM to failed
-                $Target.Probe.WinRmSuccess = $False;
-
-                # Stop the loop
-                $WinRmTesting = $False;
-            }
-        }
-    }
+try {
+    $Target | Add-Member -MemberType NoteProperty -Name Probe -Value $(New-Probe);
+} catch {
+    $E = "[$(Get-Date -f "dd/MM/yy-HH:mm:ss")] [Probe Init Error] Adding new Probe object failed with exception: $($_.Exception.Message)";
+    $Target.Errors += $E;
+    return $Target;
 }
 
-# Set ourselves a WMI loop controller
-$WmiTesting  = $True;
+# Test ICMP
+try {
+    $Target.Probe.Networking.ICMP = Test-IcmpPing -Endpoint $Target.Endpoint;
+} catch {
+    $E = "[$(Get-Date -f "dd/MM/yy-HH:mm:ss")] [Probe Error] ICMP test failed with exception: $($_.Exception.Message)";
+    $Target.Errors += $E;
+}
+
+# Try and discover the OS
+try {
+    $Target.Probe.Info.NmapDiscoveredOS = Nmap-TargetOS -Endpoint $Target.Endpoint;
+} catch {
+    $E = "[$(Get-Date -f "dd/MM/yy-HH:mm:ss")] [Probe Error] Nmap OS discovery failed with exception: $($_.Exception.Message)";
+    $Target.Errors += $E;
+}
+
+# Resolve the endpoints for this target and add them to the target probe object
+try {
+    $ResolvedEndpoints = Resolve-Endpoints -Endpoint $Target.Endpoint;
+    $Target.Probe.Networking.HostNames     = $ResolvedEndpoints.HostNames;
+    $Target.Probe.Networking.DnsAliases    = $ResolvedEndpoints.DnsAliases;
+    $Target.Probe.Networking.IPv4Addresses = $ResolvedEndpoints.IPv4Addresses;
+    $Target.Probe.Networking.IPv6Addresses = $ResolvedEndpoints.IPv6Addresses;
+} catch {
+    $E = "[$(Get-Date -f "dd/MM/yy-HH:mm:ss")] [Probe Error] Recursive target lookup failed with exception: $($_.Exception.Message)";
+    $Target.Errors += $E;
+}
+
+# Work out whether what type of connections we should try
+if ($Target.OperatingSystem.Contains("Windows") -or $Target.Probe.Info.NmapDiscoveredOS.Contains("Windows")) {
+    $WmiTesting = $True;
+    $SshTesting = $False;
+} elseif ($Target.OperatingSystem.Contains("Linux") -or $Target.Probe.Info.NmapDiscoveredOS.Contains("Linux")) {
+    $WmiTesting = $False;
+    $SshTesting = $True;
+} else {
+    $WmiTesting = $True;
+    $SshTesting = $True;
+}
 
 # Loop while we resolve the possible WMI connection options
 While ($WmiTesting) {
 
     # Ok first we need to resolve which credential we're using
-    if (!$Target.Probe.WmiCredentialsTested) {
+    if (!$Target.Probe.Credentials.Tested) {
         # Not tried anything yet, get the known or default credential
         $C = $(if ($Target.Credential){
             $Credentials | ?{$_.ID -eq $Target.Credential};
@@ -151,9 +97,17 @@ While ($WmiTesting) {
         });
     } else {
         $C = $Credentials | ?{
-            $Target.Probe.WmiCredentialsTested -notcontains $_.ID -and
+            $Target.Probe.Credentials.Tested -notcontains $_.ID -and
             $_.Type.Contains("Windows")
         } | Select -First 1;
+    }
+
+    # Check and see if we're out of credentials
+    if (!$C) {
+        $E = "[$(Get-Date -f "dd/MM/yy-HH:mm:ss")] [Probe Error] No supplied WMI credentials valid for this target.";
+        $Target.Errors += $E;
+        $WmiTesting = $False;
+        break;
     }
 
     # Build a PSCredential from the object
@@ -161,54 +115,51 @@ While ($WmiTesting) {
     $Username = "{0}\{1}" -f $C.Domain,$C.Username;
     $PSCredential = New-Object System.Management.Automation.PSCredential($Username,$SecurePassword);
 
-    # Splat up the WMI params for this check
-    $WmiParams = @{
-        Target            = $Target.Endpoint;
-        Credential        = $PSCredential;
-        ScriptPath        = "$PSScriptRoot\Collectors\WMI\_ConnectionCheck.ps1";
-        MachineIdentifier = $([Guid]::NewGuid().Guid);
-    }
-
     # Now execute the check and act on the results
     try {
-        $WmiResult = .\Invoke-Wmi.ps1 @WmiParams;
+        $WmiResult = Invoke-Wmi `
+                        -Target $Target.Endpoint `
+                        -Credential $PSCredential `
+                        -ScriptPath "$RootDirectory\PowerShell\Collectors\WMI\_ConnectionCheck.ps1" `
+                        -MachineIdentifier $Target.ID;
     
-        # Check for null return
-        if ($WmiResult) {
-            # Ok if we get this far we know the settings on this run were good
-            $Target.Probe.WmiCredentialsSuccessful = $C.ID;
-            $Target.Probe.WmiCredentialsTested += $C.ID;
+        # Ok if we get this far we know the settings on this run were good
+        $Target.Probe.Credentials.Successful = $C.ID;
+        $Target.Probe.Credentials.Tested += $C.ID;
+        $Target.Probe.RemoteConnectivity.Wmi.Authentication = "PSCredential";
 
-            # Store the OS result
-            $Target.Probe.RemoteDiscoveredOS = $WmiResult;
+        # Store the OS result
+        $Target.Probe.Info.RemoteDiscoveredOS = $WmiResult;
 
-            # Set WinRM to successful
-            $Target.Probe.WmiSuccess = $True;
+        # Set WinRM to successful
+        $Target.Probe.RemoteConnectivity.Wmi.Successful = $True;
 
-            # Stop the loop
-            $WmiTesting = $False;
-        } else {
-            throw "Target returned a null value for the connection check.";
-        }
+        # Stop the loop
+        $WmiTesting = $False;
 
     } catch {
-        # Grab the exception from the pipeline so we don't lose it
-        $E = $_.Exception.Message
+        # Grab the exception from the pipeline so we can parse it
+        $Ex = $_.Exception.Message;
+
+        # Check and see if it's a WSMan XML message
+        if ($(try{([Xml]$Ex).DocumentElement.Message}catch{$False})) {
+            $Exception = ([Xml]$Ex).DocumentElement.Message;
+        } else {
+            $Exception = $Ex;
+        }
 
         # Ok check if the connection worked but the credential failed
-        if ($E.Contains("Access Denied")) {
+        if ($Exception.Contains("Access Denied")) {
             # We now know this credential doesn't work
-            $Target.Probe.WmiCredentialsTested += $C.ID;
+            $Target.Probe.Credentials.Tested += $C.ID;
         } else {
-            # Ok something else is wrong with WMI here, try and parse the message
-            if (([Xml]$E).DocumentElement.Message) {
-                $Target.Probe.WmiError = ([Xml]$E).DocumentElement.Message;
-            } else {
-                $Target.Probe.WmiError = $E;
-            }
+            # Build our output error and add it to the target object
+            $E = "[$(Get-Date -f "dd/MM/yy-HH:mm:ss")] [Probe Error] WMI Remote access failed with exception: $Exception";
+            $Target.Errors += $E;
             
-            # Set WMI to failed
-            $Target.Probe.WmiSuccess = $False;
+            # Set WMI to failed and capture the raw error
+            $Target.Probe.RemoteConnectivity.Wmi.Successful = $False;
+            $Target.Probe.RemoteConnectivity.Wmi.ErrorMessage = $Ex;
 
             # Stop the loop
             $WmiTesting = $False;
@@ -216,14 +167,11 @@ While ($WmiTesting) {
     }
 }
 
-# Set ourselves a SSH loop controller
-$SshTesting  = $True;
-
 # Loop while we resolve the possible SSH connection options
 While ($SshTesting) {
 
     # Ok first we need to resolve which credential we're using
-    if (!$Target.Probe.SshCredentialsTested) {
+    if (!$Target.Probe.Credentials.Tested) {
         # Not tried anything yet, get the known or default credential
         $C = $(if ($Target.Credential){
             $Credentials | ?{$_.ID -eq $Target.Credential};
@@ -233,70 +181,95 @@ While ($SshTesting) {
     } else {
         # Ok we've tried credentials previously to this, get the next one
         $C = $Credentials | ?{
-            $Target.Probe.SshCredentialsTested -notcontains $_.ID -and
+            $Target.Probe.Credentials.Tested -notcontains $_.ID -and
             $_.Type.Contains("Linux")
         } | Select -First 1;
     }
 
-    # Splat up the basic ssh params
-    $SshParams = @{
-        Target            = $Target.Endpoint;
-        Username          = $C.Username;
-        ScriptPath        = "$PSScriptRoot\Collectors\SSH\_ConnectionCheck.sh";
-        MachineIdentifier = $([Guid]::NewGuid().Guid);
+    # Check and see if we're out of credentials
+    if (!$C) {
+        $E = "[$(Get-Date -f "dd/MM/yy-HH:mm:ss")] [Probe Error] No supplied SSH credentials valid for this target.";
+        $Target.Errors += $E;
+        $SshTesting = $False;
+        break;
     }
 
-    # Now we need to work out what sort of credential this is and add to the params accordingly
-    Switch ($C.Type)
-    {
-        "Linux/Unix Credentials" {
-            $SshParams | Add-Member -MemberType NoteProperty -Name Password -Value $C.Password;
-        }
-        "Linux/Unix Private Key file" {
-            $SshParams | Add-Member -MemberType NoteProperty -Name PrivateKeyFilePath -Value $C.PrivateKeyFilePath;
-        }
-        "Linux/Unix Private Key file with Passphrase" {
-            $SshParams | Add-Member -MemberType NoteProperty -Name PrivateKeyFilePath -Value $C.PrivateKeyFilePath;
-            $SshParams | Add-Member -MemberType NoteProperty -Name PrivateKeyPassphrase -Value $C.PrivateKeyPassphrase;
-        }
-    }
-
-    # Now execute the check and act on the results
+    # Now we need to work out what sort of credential this is and exec accordingly
     try {
-        $SshResult = .\Invoke-Ssh.ps1 @SshParams;
-    
-        # Check for null return
-        if ($SshResult) {
-            # Ok if we get this far we know the settings on this run were good
-            $Target.Probe.SshCredentialsSuccessful = $C.ID;
-            $Target.Probe.SshCredentialsTested += $C.ID;
+        Switch ($C.Type)
+        {
+            "Linux/Unix Credentials" {
+                # Set some flags we can use later if successful
+                $Authentication = "Credentials";
 
-            # Store the OS result
-            $Target.Probe.RemoteDiscoveredOS = $SshResult;
+                # And exec to try and get our result
+                $SshResult = Invoke-Ssh `
+                                -Target $Target.Endpoint `
+                                -Username $C.Username `
+                                -Password $C.Password `
+                                -ScriptPath "$RootDirectory\PowerShell\Collectors\SSH\_ConnectionCheck.sh" `
+                                -MachineIdentifier $Target.ID;
+            }
+            "Linux/Unix Private Key file" {
+                # Set some flags we can use later if successful
+                $Authentication = "PrivateKey";
 
-            # Set WinRM to successful
-            $Target.Probe.SshSuccess = $True;
+                # And exec to try and get our result
+                $SshResult = Invoke-Ssh `
+                                -Target $Target.Endpoint `
+                                -Username $C.Username `
+                                -PrivateKeyFilePath $C.PrivateKeyFilePath `
+                                -ScriptPath "$RootDirectory\PowerShell\Collectors\SSH\_ConnectionCheck.sh" `
+                                -MachineIdentifier $Target.ID;
+            }
+            "Linux/Unix Private Key file with Passphrase" {
+                # Set some flags we can use later if successful
+                $Authentication = "PrivateKeyWithPassphrase";
 
-            # Stop the loop
-            $SshTesting = $False;
-        } else {
-            throw "Target returned a null value for the connection check.";
+                # And exec to try and get our result
+                $SshResult = Invoke-Ssh `
+                                -Target $Target.Endpoint `
+                                -Username $C.Username `
+                                -PrivateKeyFilePath $C.PrivateKeyFilePath `
+                                -PrivateKeyPassphrase $C.PrivateKeyPassphrase `
+                                -ScriptPath "$RootDirectory\PowerShell\Collectors\SSH\_ConnectionCheck.sh" `
+                                -MachineIdentifier $Target.ID;
+            }
         }
+
+        # Ok if we get this far we know the settings on this run were good
+        $Target.Probe.Credentials.Successful = $C.ID;
+        $Target.Probe.Credentials.Tested += $C.ID;
+        $Target.Probe.RemoteConnectivity.Authentication = $Authentication;
+
+        # Store the OS result
+        $Target.Probe.Info.RemoteDiscoveredOS = $SshResult;
+
+        # Set ssh to successful
+        $Target.Probe.RemoteConnectivity.Ssh.Successful = $True;
+
+        # Stop the loop
+        $SshTesting = $False;
 
     } catch {
-        # Grab the exception from the pipeline so we don't lose it
-        $E = $_.Exception.Message
+        # Grab the exception from the pipeline so we can parse it
+        $Exception = $_.Exception.Message;
 
         # Ok check if the connection worked but the credential failed
-        if ($E.Contains("Access Denied")) {
+        if ($Exception.Contains("Access Denied")) {
             # We now know this credential doesn't work
-            $Target.Probe.SshCredentialsTested += $C.ID;
+            $Target.Probe.Credentials.Tested += $C.ID;
         } else {
-            # Ok something else is wrong with WMI here, try and parse the message
-            $Target.Probe.SshError = $E;
+            # Build our output error and add it to the target object
+            $E = "[$(Get-Date -f "dd/MM/yy-HH:mm:ss")] [Probe Error] SSH Remote access failed with exception: $Exception";
+            $Target.Errors += $E;
 
+            # Set SSH to failed and capture the raw error
+            $Target.Probe.RemoteConnectivity.Ssh.Successful = $False;
+            $Target.Probe.RemoteConnectivity.Ssh.ErrorMessage = $Ex;
+            
             # Set SSH to failed
-            $Target.Probe.SshSuccess = $False;
+            $Target.Probe.RemoteConnectivity.Ssh.Successful = $False;
 
             # Stop the loop
             $SshTesting = $False;
@@ -305,15 +278,15 @@ While ($SshTesting) {
 }
 
 # Set our remote connectivity health property based on what we know now
-if ((@($Result.Probe.WinRmSuccess,$Result.Probe.WmiSuccess,$Result.Probe.SshSuccess) -Contains $True)) {
-    $Result.Probe.RemoteHealthy = $True;
+if ($Target.Probe.RemoteConnectivity.Wmi.Successful -or $Target.Probe.RemoteConnectivity.Ssh.Successful) {
+    $Target.Probe.RemoteConnectivity.OK = $True;
 } else {
-    $Result.Probe.RemoteHealthy = $False;
+    $Target.Probe.RemoteConnectivity.OK = $False;
 }
 
 # Set our scan time for this host
 $EndTime = Get-Date;
-$Result.Probe.TimeTaken = $(New-TimeSpan $StartTime $EndTime);
+$Target.Probe.Info.TimeTaken = $(New-TimeSpan $StartTime $EndTime);
 
-# And return the updated result object
-return $Result;
+# And return the updated target object
+return $Target;
