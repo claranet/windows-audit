@@ -536,15 +536,15 @@ namespace claranet_audit.Controllers
             // Ok we need to set some scan properties
             AuditController.CurrentScan.InProgress = true;
             AuditController.CurrentScan.Status = 1;
-            AuditController.CurrentScan.TotalHostsCount = 100; // Should be AuditController.HostsCache.Count;
+            AuditController.CurrentScan.TotalHostsCount = AuditController.HostsCache.Count;
 
             // Filter our hosts list
-            //var Includes = AuditController.HostsCache.Where(h => h.Operand == "Include").Select(e => e.Endpoint);
-            //var Excludes = AuditController.HostsCache.Where(h => h.Operand == "Exclude").Select(e => e.Endpoint);
-            //var HostEndpoints = Includes.Except(Excludes);
+            var HostsToScan = AuditController.HostsCache.Where(i => 
+                AuditController.HostsCache.All(e => e.ID != i.ID
+            )); 
 
             // Serialise the hosts and credentials
-            string HostsJson = JsonConvert.SerializeObject(AuditController.HostsCache);
+            string HostsJson = JsonConvert.SerializeObject(HostsToScan);
             string CredentialsJson = JsonConvert.SerializeObject(AuditController.CredentialsCache);
 
             // Write the data to disk because passing in would be too long
