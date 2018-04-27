@@ -135,6 +135,11 @@ try {
     # Invoke the build
     Invoke-Expression $Publish;
 
+    # Check the last result and throw if broken
+    if ($LASTEXITCODE -gt 0) {
+        throw "(printed to stdout above)";
+    }
+
     # Write success
     Write-BuildMessage `
         -Message ".NET build completed successfully" `
