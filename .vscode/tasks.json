@@ -2,6 +2,16 @@
     "version": "2.0.0",
     "tasks": [
         {
+            "label": "prebuild",
+            "command": "powershell",
+            "type": "process",
+            "args": [
+                "-file",
+                "${workspaceFolder}/Code/_ClearDevelopmentFiles.ps1",
+                "${workspaceFolder}"
+            ]
+        },
+        {
             "label": "build",
             "command": "dotnet",
             "type": "process",
