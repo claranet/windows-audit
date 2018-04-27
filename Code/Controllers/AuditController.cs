@@ -348,7 +348,7 @@ namespace claranet_audit.Controllers
         {
             // Ok first let's zip up all the files
             string ZipFileName = String.Format("{0}-data.zip", GlobalScanName.ToLower());
-            string ZipFilePath = Path.Combine(ResultsRoot, ZipFileName);
+            string ZipFilePath = Path.Combine(StorageRoot, ZipFileName);
             ZipFile.CreateFromDirectory(ResultsRoot, ZipFilePath, CompressionLevel.Fastest, false);
 
             // Read up the bytes from the exported zip file and remove it
@@ -362,7 +362,7 @@ namespace claranet_audit.Controllers
             
             // Load up the public key
             string PublicKey = System.IO.File.ReadAllText(PublicKeyFilePath);
-            rsa.FromXmlString(PublicKey);
+            Tools.ConvertKeyFromXml(rsa, PublicKey);
 
             // Stream up the encrypted content for the client download
             byte[] ExportBytes = rsa.Encrypt(UnencryptedBytes, false);
@@ -463,6 +463,36 @@ namespace claranet_audit.Controllers
                             p.DQ != null ? Convert.ToBase64String(p.DQ) : null,
                             p.InverseQ != null ? Convert.ToBase64String(p.InverseQ) : null,
                             p.D != null ? Convert.ToBase64String(p.D) : null);
+        }
+
+        // Returns an asymmetric key from XML
+        public static void ConvertKeyFromXml(RSACryptoServiceProvider rsa, string xml)
+        {
+            // Get an RsaParams object to load into the CSP
+            RSAParameters p = new RSAParameters();
+
+            // Load up the XML into an XmlDocument
+            XmlDocument x = new XmlDocument();
+            x.LoadXml(xml);
+
+            // Loop and get the parts we need
+            foreach (XmlNode node in x.DocumentElement.ChildNodes)
+            {
+                switch (node.Name)
+                {
+                    case "Modulus": p.Modulus = (string.IsNullOrEmpty(node.InnerText) ? null : Convert.FromBase64String(node.InnerText)); break;
+                    case "Exponent": p.Exponent = (string.IsNullOrEmpty(node.InnerText) ? null : Convert.FromBase64String(node.InnerText)); break;
+                    case "P": p.P = (string.IsNullOrEmpty(node.InnerText) ? null : Convert.FromBase64String(node.InnerText)); break;
+                    case "Q": p.Q = (string.IsNullOrEmpty(node.InnerText) ? null : Convert.FromBase64String(node.InnerText)); break;
+                    case "DP": p.DP = (string.IsNullOrEmpty(node.InnerText) ? null : Convert.FromBase64String(node.InnerText)); break;
+                    case "DQ": p.DQ = (string.IsNullOrEmpty(node.InnerText) ? null : Convert.FromBase64String(node.InnerText)); break;
+                    case "InverseQ": p.InverseQ = (string.IsNullOrEmpty(node.InnerText) ? null : Convert.FromBase64String(node.InnerText)); break;
+                    case "D": p.D = (string.IsNullOrEmpty(node.InnerText) ? null : Convert.FromBase64String(node.InnerText)); break;
+                }
+            }
+
+            // Import the parameters into the RSA provider
+            rsa.ImportParameters(p);
         }
 
         // Generates the asymmetric key pair for encrypting results
@@ -590,16 +620,16 @@ namespace claranet_audit.Controllers
                             dynamic u = JsonConvert.DeserializeObject<dynamic>(s.Replace("SCANUPDATE:",""));
 
                             // Time remaining
-                            AuditController.CurrentScan.EstimatedSecondsRemaining = u.EstimatedSecondsRemaining;
+                            AuditController.CurrentScan.EstimatedSecondsRemaining = System.Convert.ToInt32(u.EstimatedSecondsRemaining);
 
                             // Probes
-                            AuditController.CurrentScan.ProbeSuccessCount = u.ProbeSuccessCount;
-                            AuditController.CurrentScan.ProbeFailedCount = u.ProbeFailedCount;
+                            AuditController.CurrentScan.ProbeSuccessCount = System.Convert.ToInt32(u.ProbeSuccessCount);
+                            AuditController.CurrentScan.ProbeFailedCount = System.Convert.ToInt32(u.ProbeFailedCount);
                         
                             // Audits
-                            AuditController.CurrentScan.AuditQueueCount = u.AuditQueueCount;
-                            AuditController.CurrentScan.AuditSuccessCount = u.AuditSuccessCount;
-                            AuditController.CurrentScan.AuditFailedCount = u.AuditFailedCount;
+                            AuditController.CurrentScan.AuditQueueCount = System.Convert.ToInt32(u.AuditQueueCount);
+                            AuditController.CurrentScan.AuditSuccessCount = System.Convert.ToInt32(u.AuditSuccessCount);
+                            AuditController.CurrentScan.AuditFailedCount = System.Convert.ToInt32(u.AuditFailedCount);
                             
                         }
                         else if (s.Contains("HOSTUPDATE:"))
@@ -608,10 +638,14 @@ namespace claranet_audit.Controllers
                             dynamic u = JsonConvert.DeserializeObject<dynamic>(s.Replace("HOSTUPDATE:",""));
 
                             // Update the host with the current info
-                            AuditController.HostsCache.Where(h => h.ID == u.ID).ToList().ForEach(htu => 
+                            AuditController.HostsCache.Where(h => h.ID == u.ID.ToString()).ToList().ForEach(htu => 
                                 {
                                     htu.Status = u.Status;
-                                    htu.Errors = u.Errors;
+                                    if (u.Errors != null) {
+                                        foreach (string e in u.Errors){
+                                            htu.Errors.Add(e);
+                                        };
+                                    }
                                 }
                             );
                         }
