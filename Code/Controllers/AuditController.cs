@@ -561,7 +561,7 @@ namespace claranet_audit.Controllers
                 
                 string PowerShellScriptPath = Path.Combine(AuditController.PowerShellRoot, "Run-Audit.ps1");
                 string u_PowerShellArgs = "-NoLogo -NoProfile -NoExit -ExecutionPolicy Bypass -Command \"& '{0}' '{1}' '{2}' '{3}'"; 
-                string f_PowerShellArgs = String.Format(u_PowerShellArgs, PowerShellScriptPath, CredsOutput, HostsOutput, StorageRoot);
+                string f_PowerShellArgs = String.Format(u_PowerShellArgs, PowerShellScriptPath, CredsOutput, HostsOutput, AuditController.StorageRoot);
 
                 // Populate our process start info
                 AuditController.ScanProcessInfo.CreateNoWindow = false;
