@@ -337,7 +337,8 @@ Function New-Audit {
 
     return $([PSCustomObject][Ordered]@{
         Info = [PSCustomObject][Ordered]@{
-            TimeTaken          = $Null;
+            TimeTaken = $Null;
+            Completed = $Null;
         };
         Sections = $Null;
     });

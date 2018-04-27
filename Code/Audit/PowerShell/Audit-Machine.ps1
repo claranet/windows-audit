@@ -196,5 +196,6 @@ $AuditSections.Where({$_.Errors}).ForEach({
 $EndTime = Get-Date;
 $Target.Audit.Info.TimeTaken = $(New-TimeSpan $StartTime $EndTime);
 
-# And return the updated target object
+# Set our completed bool and return the updated target object
+$Target.Audit.Info.Completed = $True;
 return $Target;

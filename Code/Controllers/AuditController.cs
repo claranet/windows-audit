@@ -714,6 +714,10 @@ namespace claranet_audit.Controllers
                     status = "Audit error";
                     break;
                 }
+                case 202: {
+                    status = "Audit Completed with Errors";
+                    break;
+                }
             }
 
             // And return the result
