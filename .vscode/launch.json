@@ -15,12 +15,12 @@
             "cwd": "${workspaceFolder}/Code",
             "stopAtEntry": false,
             "internalConsoleOptions": "openOnSessionStart",
+            "requireExactSource": false,
             "launchBrowser": {
                 "enabled": true,
-                "args": "${auto-detect-url}",
                 "windows": {
                     "command": "cmd.exe",
-                    "args": "/C start ${auto-detect-url}"
+                    "args": "/C start http://localhost:5000"
                 },
                 "osx": {
                     "command": "open"

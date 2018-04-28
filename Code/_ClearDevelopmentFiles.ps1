@@ -19,3 +19,9 @@ $RootPath = "{0}\Code\Audit" -f $WorkspaceFolder;
         Remove-Item $_.FullName -Force;
     }
 }
+
+# Also let's remove any audit keys generated
+$DownloadsFolder = "{0}\Downloads" -f $env:USERPROFILE;
+Get-ChildItem $DownloadsFolder -Recurse "*.auditkey" | %{
+    Remove-Item $_.FullName -Force;
+};

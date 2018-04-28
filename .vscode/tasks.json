@@ -16,6 +16,16 @@
             "command": "dotnet",
             "type": "process",
             "args": [
+                "clean",
+                "${workspaceFolder}/Code/claranet-audit.csproj"
+            ],
+            "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "build",
+            "command": "dotnet",
+            "type": "process",
+            "args": [
                 "build",
                 "${workspaceFolder}/Code/claranet-audit.csproj"
             ],
