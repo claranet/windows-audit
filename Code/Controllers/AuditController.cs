@@ -14,6 +14,8 @@ using Newtonsoft.Json;
 using System.Text;
 using System.IO.Compression;
 using System.Xml;
+using System.Security;
+using System.Runtime.InteropServices;
 
 namespace claranet_audit.Controllers
 {
@@ -43,8 +45,8 @@ namespace claranet_audit.Controllers
 
         // Encryption info
         private static bool IsFirstRun = true;
-        private static string PublicKeyFilePath = "";
-        private static string PrivateKeyFilePath = "";
+        private static byte[] RijndaelKey = new byte[32];
+        private static byte[] RijndaelIV = new byte[16];
 
 
         //////// UI Actions ////////
@@ -124,22 +126,19 @@ namespace claranet_audit.Controllers
                     Directory.CreateDirectory(DataRoot);
                 }
 
-                // Set our global scan name
+                // Set our global scan name and clear the first run flag
                 CurrentScan.Name = ScanName;
                 GlobalScanName = ScanName;
-
-                // Init the key paths from the global storage root and scan name
-                PublicKeyFilePath = String.Format(@"{0}\{1}.pub",EncryptionRoot,ScanName);
-                PrivateKeyFilePath = String.Format(@"{0}\{1}.auditkey",EncryptionRoot,ScanName);
-                
-                // Generate an asymmetric key pair and clear the first run flag
-                Tools.GenerateAsymmetricKeyPair(PublicKeyFilePath, PrivateKeyFilePath);
                 IsFirstRun = false;
 
-                // Get the private key file bytes and delete the on-disk file
-                byte[] PrivateKeyBytes = System.IO.File.ReadAllBytes(PrivateKeyFilePath);
-                System.IO.File.Delete(PrivateKeyFilePath);
-                
+                // Build our Rijndael key and init vector
+                System.Security.Cryptography.RandomNumberGenerator.Create().GetBytes(RijndaelKey);
+                System.Security.Cryptography.RandomNumberGenerator.Create().GetBytes(RijndaelIV);
+
+                // Get our key and iv into seperated base 64 strings => byte[]
+                string KeyDownload = String.Format("{0}:{1}",Convert.ToBase64String(RijndaelKey),Convert.ToBase64String(RijndaelIV));
+                byte[] KeyBytes = Encoding.ASCII.GetBytes(KeyDownload);
+
                 // Get our attachment content-disposition sorted
                 var cd = new System.Net.Mime.ContentDisposition
                 {
@@ -149,7 +148,7 @@ namespace claranet_audit.Controllers
 
                 // Add the cd response header and return the stream
                 Response.Headers.Add("Content-Disposition", cd.ToString());
-                return File(PrivateKeyBytes, "application/text");
+                return File(KeyBytes, "application/text");
             }
             else
             {
@@ -355,19 +354,34 @@ namespace claranet_audit.Controllers
             // Read up the bytes from the exported zip file and remove it
             byte[] UnencryptedBytes = System.IO.File.ReadAllBytes(ZipFilePath);
             System.IO.File.Delete(ZipFilePath);
-            
-            // Build our crypto service provider and params
-            CspParameters csp = new CspParameters();
-            csp.ProviderType = 1;
-            RSACryptoServiceProvider rsa = new RSACryptoServiceProvider(csp);
-            
-            // Load up the public key
-            string PublicKey = System.IO.File.ReadAllText(PublicKeyFilePath);
-            Tools.ConvertKeyFromXml(rsa, PublicKey);
 
-            // Stream up the encrypted content for the client download
-            byte[] ExportBytes = rsa.Encrypt(UnencryptedBytes, false);
+            // Get our export bytes array declared
+            byte[] ExportBytes;
             
+            // Get our memory stream to hold our exported data
+            using (MemoryStream ExportStream = new MemoryStream())
+            {
+                // Our Rijndael provider
+                RijndaelManaged R = new RijndaelManaged();
+
+                // Use a cryptostream to encrypt the data
+                using (CryptoStream cs = new CryptoStream(ExportStream,R.CreateEncryptor(RijndaelKey,RijndaelIV),CryptoStreamMode.Write))
+                {
+                    // Import the file and write to the cryptostream
+                    using (MemoryStream ImportStream = new MemoryStream(UnencryptedBytes))
+                    {
+                        int data;
+                        while ((data = ImportStream.ReadByte()) != -1)
+                        {
+                            cs.WriteByte((byte)data);
+                        }
+                    }
+
+                    // Stream up the encrypted content for the client download
+                    ExportBytes = ExportStream.ToArray();
+                }
+            }
+
             // Get our attachment content-disposition sorted
             var cd = new System.Net.Mime.ContentDisposition
             {
@@ -448,79 +462,6 @@ namespace claranet_audit.Controllers
             return ips;
         }
 
-        // Returns an asymmetric key as XML
-        public static string ConvertKeyToXml(RSACryptoServiceProvider rsa, bool ExportPrivateParameters)
-        {
-            // Get the properties
-            RSAParameters p = rsa.ExportParameters(ExportPrivateParameters);
-
-            // And return the string
-            return String.Format("<RSAKeyValue><Modulus>{0}</Modulus><Exponent>{1}</Exponent><P>{2}</P><Q>{3}</Q><DP>{4}</DP><DQ>{5}</DQ><InverseQ>{6}</InverseQ><D>{7}</D></RSAKeyValue>",
-                            p.Modulus != null ? Convert.ToBase64String(p.Modulus) : null,
-                            p.Exponent != null ? Convert.ToBase64String(p.Exponent) : null,
-                            p.P != null ? Convert.ToBase64String(p.P) : null,
-                            p.Q != null ? Convert.ToBase64String(p.Q) : null,
-                            p.DP != null ? Convert.ToBase64String(p.DP) : null,
-                            p.DQ != null ? Convert.ToBase64String(p.DQ) : null,
-                            p.InverseQ != null ? Convert.ToBase64String(p.InverseQ) : null,
-                            p.D != null ? Convert.ToBase64String(p.D) : null);
-        }
-
-        // Returns an asymmetric key from XML
-        public static void ConvertKeyFromXml(RSACryptoServiceProvider rsa, string xml)
-        {
-            // Get an RsaParams object to load into the CSP
-            RSAParameters p = new RSAParameters();
-
-            // Load up the XML into an XmlDocument
-            XmlDocument x = new XmlDocument();
-            x.LoadXml(xml);
-
-            // Loop and get the parts we need
-            foreach (XmlNode node in x.DocumentElement.ChildNodes)
-            {
-                switch (node.Name)
-                {
-                    case "Modulus": p.Modulus = (string.IsNullOrEmpty(node.InnerText) ? null : Convert.FromBase64String(node.InnerText)); break;
-                    case "Exponent": p.Exponent = (string.IsNullOrEmpty(node.InnerText) ? null : Convert.FromBase64String(node.InnerText)); break;
-                    case "P": p.P = (string.IsNullOrEmpty(node.InnerText) ? null : Convert.FromBase64String(node.InnerText)); break;
-                    case "Q": p.Q = (string.IsNullOrEmpty(node.InnerText) ? null : Convert.FromBase64String(node.InnerText)); break;
-                    case "DP": p.DP = (string.IsNullOrEmpty(node.InnerText) ? null : Convert.FromBase64String(node.InnerText)); break;
-                    case "DQ": p.DQ = (string.IsNullOrEmpty(node.InnerText) ? null : Convert.FromBase64String(node.InnerText)); break;
-                    case "InverseQ": p.InverseQ = (string.IsNullOrEmpty(node.InnerText) ? null : Convert.FromBase64String(node.InnerText)); break;
-                    case "D": p.D = (string.IsNullOrEmpty(node.InnerText) ? null : Convert.FromBase64String(node.InnerText)); break;
-                }
-            }
-
-            // Import the parameters into the RSA provider
-            rsa.ImportParameters(p);
-        }
-
-        // Generates the asymmetric key pair for encrypting results
-        public static void GenerateAsymmetricKeyPair(string PublicKeyPath, string PrivateKeyPath)
-        {
-            // Configure crypto service provider params
-            CspParameters CspParams = new CspParameters();
-            CspParams.ProviderType = 1;
-            CspParams.Flags = CspProviderFlags.UseArchivableKey;
-            CspParams.KeyNumber = (int)KeyNumber.Exchange;
-
-            // Init the provider
-            RSACryptoServiceProvider Rsa = new RSACryptoServiceProvider(CspParams);
-
-            // Convert public key to xml string and write to file
-            using (StreamWriter PublicKeyFile = System.IO.File.CreateText(PublicKeyPath)) 
-            {
-                PublicKeyFile.Write(ConvertKeyToXml(Rsa, false));
-            }
-
-            // Convert private key to xml string and write to file
-            using (StreamWriter PrivateKeyFile = System.IO.File.CreateText(PrivateKeyPath)) 
-            {
-                PrivateKeyFile.Write(ConvertKeyToXml(Rsa, true));
-            }
-        }
-
         // Creates and adds a host object to the hosts cache
         public static void AddHostToCache(string[] Properties)
         {
@@ -572,11 +513,11 @@ namespace claranet_audit.Controllers
                 AuditController.CurrentScan.TotalHostsCount = AuditController.HostsCache.Count;
 
                 // Wipe any current errors we have for the hosts
-                AuditController.HostsCache.Count(e => e.Errors > 0).ToList().ForEach(er => er.Errors.Clear());
+                AuditController.HostsCache.Where(e => e.Errors.Count > 0).ToList().ForEach(er => er.Errors.Clear());
 
                 // Filter our hosts list to place preference on any exclusions
                 var HostsToInclude = AuditController.HostsCache.Where(i => i.Operand == ">" && 
-                    (AuditController.HostsCache.Count(e => e.Operand == "<" && i.Target == e.Target) == 0)
+                    (AuditController.HostsCache.Count(e => e.Operand == "<" && i.Endpoint == e.Endpoint) == 0)
                 ).ToList();
 
                 // Serialise the hosts and credentials
