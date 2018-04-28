@@ -173,7 +173,7 @@ While ($SshTesting) {
     # Ok first we need to resolve which credential we're using
     if (!$Target.Probe.Credentials.Tested) {
         # Not tried anything yet, get the known or default credential
-        $C = $(if ($Target.Credential){
+        $C = $(if ($($Credentials | ?{$_.ID -eq $Target.Credential})){
             $Credentials | ?{$_.ID -eq $Target.Credential};
         } else {
             $Credentials | ?{$_.IsDefault -and $_.Type.Contains("Linux")} | Select -First 1;
