@@ -24,8 +24,8 @@
                 </li>
                 <li class="list-group-item d-flex justify-content-between align-items-center">
                     Total Progress 
-                    <span class="badge badge-secondary">@Model.CompletedHostsPercent%</span>
-                    <span class="badge badge-secondary">@Model.TotalHostsCount Remaining</span>
+                    <span class="badge badge-secondary">@Model.CompletedHostsPercent% Complete</span>
+                    <span class="badge badge-secondary">@Model.TotalHostsCount Total</span>
                     <span class="badge badge-secondary">@Model.CompletedHostsCount Completed</span>
                     <div class="progress">
                         <div class="progress-bar bg-success active" role="progressbar" style="width: @(Model.CompletedHostsPercent)%" aria-valuenow="@(Model.CompletedHostsPercent)" aria-valuemin="0" aria-valuemax="100"></div>
@@ -46,6 +46,7 @@
                     Audit Success Rate 
                     <span class="badge badge-danger">@Model.AuditFailedCount Failed</span>
                     <span class="badge badge-success">@Model.AuditSuccessCount Successful</span>
+                    <span class="badge badge-secondary">@Model.AuditRemainingCount Remaining</span>
                     <div class="progress">
                         <div class="progress-bar b-success" role="progressbar" style="width: @Model.AuditSuccessPercent%" aria-valuenow="@Model.AuditSuccessPercent" aria-valuemin="0" aria-valuemax="100"></div>
                         <div class="progress-bar b-failed" role="progressbar" style="width: @Model.AuditFailedPercent%" aria-valuenow="@Model.AuditFailedPercent" aria-valuemin="0" aria-valuemax="100"></div>

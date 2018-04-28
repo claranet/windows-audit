@@ -90,7 +90,7 @@
                 <td>@h.OperatingSystem</td>
                 <td>@h.FamiliarityString</td>
                 <td>@h.StatusString</td>
-                <td>@string.Join("\r\n", @h.Errors.ToArray())</td>
+                <td class="text-danger">@string.Join("\r\n", @h.Errors.ToArray())</td>
             </tr>
         }
   </tbody>
