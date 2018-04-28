@@ -26,7 +26,6 @@ namespace claranet_audit.Controllers
 
         // Storage paths
         public static readonly string StorageRoot = Path.Combine(Directory.GetCurrentDirectory(),"Audit");
-        public static readonly string EncryptionRoot = Path.Combine(StorageRoot,"Encryption");
         public static readonly string CredentialsRoot = Path.Combine(StorageRoot,"Credentials");
         public static readonly string HostsRoot = Path.Combine(StorageRoot,"Hosts");
         public static readonly string ResultsRoot = Path.Combine(StorageRoot,"Results");
@@ -101,11 +100,6 @@ namespace claranet_audit.Controllers
             if (IsFirstRun)
             {
                 // First let's make sure the root directories are created (git excludes empties)
-                if (!Directory.Exists(EncryptionRoot))
-                {
-                    Directory.CreateDirectory(EncryptionRoot);
-                }
-
                 if (!Directory.Exists(CredentialsRoot))
                 {
                     Directory.CreateDirectory(CredentialsRoot);
@@ -332,7 +326,6 @@ namespace claranet_audit.Controllers
         public IActionResult ShutdownContainer()
         {
             // Quick cleanup in case someone runs the container without the --rm switch
-            Directory.Delete(EncryptionRoot);
             Directory.Delete(CredentialsRoot);
             Directory.Delete(HostsRoot);
             Directory.Delete(ResultsRoot);

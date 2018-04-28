@@ -9,7 +9,7 @@ Param(
 $RootPath = "{0}\Code\Audit" -f $WorkspaceFolder;
 
 # Enumerate the folders we want to clear
-"Credentials","Data","Encryption","Hosts","Results" | %{
+"Credentials","Data","Hosts","Results" | %{
 
     # Build the folder path
     $Folder = "{0}\{1}" -f $RootPath,$_;
