@@ -67,6 +67,88 @@ Function Write-HostUpdate {
     Write-Output $StatusString;
 }
 
+# Writes host update to stdout
+Function Write-HostUpdate {
+    [Cmdletbinding()]
+    Param(
+        [Parameter(Mandatory=$True)]
+        [ValidateNotNullOrEmpty()]
+        [String]$ID,
+        [Parameter(Mandatory=$True)]
+        [ValidateNotNullOrEmpty()]
+        [Int]$Status,
+        [Parameter(Mandatory=$False)]
+        [Array]$Errors
+    )
+
+    # Build the json output
+    $JSON = @{
+        ID = $ID;
+        Status = $Status;
+        Errors = $Errors;
+    } | ConvertTo-Json -Compress;
+
+    # Build the status string
+    $StatusString = "HOSTUPDATE:$JSON";
+
+    # And write out
+    Write-Output $StatusString;
+}
+
+# Writes out a scan termination
+Function Terminate-Scan {
+    [Cmdletinding()]
+    Param(
+        [Parameter(Mandatory=$True)]
+        [ValidateSet("Error","Success")]
+        [String]$State,
+
+        [Parameter(Mandatory=$True)]
+        [ValidateNotNullOrEmpty()]
+        [String]$Message
+    )
+
+    # Build the json output
+    $JSON = @{
+        State = $State;
+        Message = $Message;
+    } | ConvertTo-Json -Compress;
+
+    # Build the status string
+    $TerminationString = "SCANTERMINATE:$JSON";
+
+    # And write out
+    Write-Output $TerminationString;
+}
+
+# Writes host update to stdout
+Function Write-HostUpdate {
+    [Cmdletbinding()]
+    Param(
+        [Parameter(Mandatory=$True)]
+        [ValidateNotNullOrEmpty()]
+        [String]$ID,
+        [Parameter(Mandatory=$True)]
+        [ValidateNotNullOrEmpty()]
+        [Int]$Status,
+        [Parameter(Mandatory=$False)]
+        [Array]$Errors
+    )
+
+    # Build the json output
+    $JSON = @{
+        ID = $ID;
+        Status = $Status;
+        Errors = $Errors;
+    } | ConvertTo-Json -Compress;
+
+    # Build the status string
+    $StatusString = "HOSTUPDATE:$JSON";
+
+    # And write out
+    Write-Output $StatusString;
+}
+
 # Unrolls an encoded json/base64 string
 Function Unroll-EncodedJson {
     [Cmdletbinding()]

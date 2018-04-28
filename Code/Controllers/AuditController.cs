@@ -13,6 +13,7 @@ using System.Web;
 using Newtonsoft.Json;
 using System.Text;
 using System.IO.Compression;
+using System.Xml;
 
 namespace claranet_audit.Controllers
 {
@@ -570,13 +571,16 @@ namespace claranet_audit.Controllers
                 AuditController.CurrentScan.Status = 1;
                 AuditController.CurrentScan.TotalHostsCount = AuditController.HostsCache.Count;
 
-                // Filter our hosts list
-                //var HostsToInclude = AuditController.HostsCache.Where(i => i.Operand == ">");
-                //var HostsToExclude = AuditController.HostsCache.Where(i => i.Operand == "<").ToList();
-                //var HostsToScan = HostsToInclude.Where(i => (HostsToExclude.Exists(e => e.ID == i.ID) == false));
+                // Wipe any current errors we have for the hosts
+                AuditController.HostsCache.Count(e => e.Errors > 0).ToList().ForEach(er => er.Errors.Clear());
+
+                // Filter our hosts list to place preference on any exclusions
+                var HostsToInclude = AuditController.HostsCache.Where(i => i.Operand == ">" && 
+                    (AuditController.HostsCache.Count(e => e.Operand == "<" && i.Target == e.Target) == 0)
+                ).ToList();
 
                 // Serialise the hosts and credentials
-                string HostsJson = JsonConvert.SerializeObject(AuditController.HostsCache);
+                string HostsJson = JsonConvert.SerializeObject(HostsToInclude);
                 string CredentialsJson = JsonConvert.SerializeObject(AuditController.CredentialsCache);
 
                 // Write the data to disk because passing in would be too long
@@ -585,13 +589,16 @@ namespace claranet_audit.Controllers
                 System.IO.File.WriteAllText(HostsOutput, HostsJson);
                 System.IO.File.WriteAllText(CredsOutput, CredentialsJson);
 
-                // Build our command string
+                // Get our PowerShell directory and script path sorted
                 string WindowsDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
                 string PowerShell = Path.Combine(WindowsDir, "System32", "WindowsPowerShell", "v1.0", "PowerShell.exe");
-                
                 string PowerShellScriptPath = Path.Combine(AuditController.PowerShellRoot, "Run-Audit.ps1");
-                string u_PowerShellArgs = "-NoLogo -NoProfile -NoExit -ExecutionPolicy Bypass -Command \"& '{0}' '{1}' '{2}' '{3}'"; 
-                string f_PowerShellArgs = String.Format(u_PowerShellArgs, PowerShellScriptPath, CredsOutput, HostsOutput, AuditController.StorageRoot);
+
+                // Build our commands
+                string u_PowerShellCommand = "& '{0}' '{1}' '{2}' '{3}';[Environment]::Exit($LASTEXITCODE);";
+                string f_PowerShellCommand = String.Format(u_PowerShellCommand, PowerShellScriptPath, CredsOutput, HostsOutput, AuditController.StorageRoot);
+                string u_PowerShellArgs = "-NoLogo -NoProfile -NoExit -ExecutionPolicy Bypass -Command \"{0}\""; 
+                string f_PowerShellArgs = String.Format(u_PowerShellArgs, f_PowerShellCommand);
 
                 // Populate our process start info
                 AuditController.ScanProcessInfo.CreateNoWindow = false;
@@ -651,13 +658,13 @@ namespace claranet_audit.Controllers
                         }
                         else
                         {
-                            // ¯\_(ツ)_/¯
+                            // 's just another loop, man. ¯\_(ツ)_/¯
                         }
                     }
                 }
 
                 // If the exit code is non zero, grab the error and update the scan info
-                if (AuditController.ScanProcess.ExitCode > 0)
+                if (AuditController.ScanProcess.ExitCode > 1)
                 {
                     AuditController.CurrentScan.Status = 2;
                     AuditController.CurrentScan.ScanError = AuditController.ScanProcess.StandardError.ReadToEnd();
@@ -678,12 +685,19 @@ namespace claranet_audit.Controllers
                 // Stop the scan and close the process
                 AuditController.CurrentScan.InProgress = false;
                 AuditController.ScanProcess.Close();
+
             }
             catch (Exception e)
             {
                 // Set the scan error and info
                 AuditController.CurrentScan.Status = 2;
+                AuditController.CurrentScan.InProgress = false;
                 AuditController.CurrentScan.ScanError = e.ToString();
+
+                // Make sure we close the process
+                if (!AuditController.ScanProcess.HasExited) {
+                    AuditController.ScanProcess.Close();
+                }
             }
         }
     }
@@ -839,6 +853,13 @@ namespace claranet_audit.Controllers
         }
         
         // Total progress
+        public int RemainingHostsCount
+        {
+            get
+            {
+                return (TotalHostsCount - CompletedHostsCount);
+            }
+        }
         public int CompletedHostsCount
         {
             get

@@ -30,7 +30,7 @@ try {
     } catch {
         $E = "[$(Get-Date -f "dd/MM/yy-HH:mm:ss")] [Service Init Error] Importing utility module failed with exception: $($_.Exception.Message)";
         [Console]::Error.WriteLine($E);
-        Exit(1);
+        Exit(2);
     }
 
     # Unroll the credentials
@@ -39,7 +39,7 @@ try {
     } catch {
         $E = "[$(Get-Date -f "dd/MM/yy-HH:mm:ss")] [Service Init Error] Decoding credentials failed with exception: $($_.Exception.Message)";
         [Console]::Error.WriteLine($E);
-        Exit(1);
+        [Environment]::Exit(2);
     }
 
     # Unroll the hosts
@@ -48,7 +48,7 @@ try {
     } catch {
         $E = "[$(Get-Date -f "dd/MM/yy-HH:mm:ss")] [Service Init Error] Decoding hosts failed with exception: $($_.Exception.Message)";
         [Console]::Error.WriteLine($E);
-        Exit(1);
+        [Environment]::Exit(2);
     }
 
     # Bring in the audit/probe scripts
@@ -66,7 +66,7 @@ try {
     catch {
         $E = "[$(Get-Date -f "dd/MM/yy-HH:mm:ss")] [Service Init Error] Building script cache failed with exception: $($_.Exception.Message)";
         [Console]::Error.WriteLine($E);
-        Exit(1);
+        [Environment]::Exit(2);
     }
 
     # Create the runspace pools and queues
@@ -84,7 +84,7 @@ try {
     catch {
         $E = "[$(Get-Date -f "dd/MM/yy-HH:mm:ss")] [Service Init Error] Creating RunSpace pools and Job Queues failed with exception: $($_.Exception.Message)";
         [Console]::Error.WriteLine($E);
-        Exit(1);
+        [Environment]::Exit(2);
     }
 
     # Add all the network probe jobs to the runspace pool
@@ -119,7 +119,7 @@ try {
     catch {
         $E = "[$(Get-Date -f "dd/MM/yy-HH:mm:ss")] [Service Init Error] Adding Probes to RunSpace queue failed with exception: $($_.Exception.Message)";
         [Console]::Error.WriteLine($E);
-        Exit(1);
+        [Environment]::Exit(2);
     }
 
     # Start streaming the results from the runspace pool following up as required
@@ -252,11 +252,11 @@ try {
     } catch {
         $E = "[$(Get-Date -f "dd/MM/yy-HH:mm:ss")] [Service Error] Streaming RunSpace queue failed with exception: $($_.Exception.Message)";
         [Console]::Error.WriteLine($E);
-        Exit(1);
+        [Environment]::Exit(2);
     }
 
     # And we're done
-    Exit(0);
+    [Environment]::Exit(1);
 }
 finally {
     # Check if we have still have runspace resources and dispose of them
