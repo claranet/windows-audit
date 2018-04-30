@@ -24,7 +24,7 @@ $ProcessQuery = "SELECT * FROM WIN32_Process";
 $Processes = Get-WmiObject -ComputerName $Target -Credential $Credential -Query $ProcessQuery;
 
 # Build our CMD
-$NetstatCmd = "cmd /v /c SET COUNTER=0 & for /f ""tokens=*"" %f in ('netstat -ano') do (reg add HKEY_LOCAL_MACHINE\SOFTWARE\Claranet /v !COUNTER! /t REG_SZ /d ""%f"" & SET /A COUNTER+=1)";
+$NetstatCmd = "cmd /v /c SET COUNTER=0 & for /f ""tokens=*"" %f in ('netstat -ano') do (reg add HKEY_LOCAL_MACHINE\SOFTWARE\ClaranetNetstat /v !COUNTER! /t REG_SZ /d ""%f"" & SET /A COUNTER+=1)";
 
 # Execute our CMD
 $Process = Invoke-WmiMethod -ComputerName $Target -Credential $Credential -Class "Win32_process" -Name "Create" -ArgumentList $NetstatCmd;
@@ -41,7 +41,7 @@ $RegProvider = Get-WmiObject -ComputerName $Target -Credential $Credential -List
 
 # Declare some registry helper variables
 $HKLM = [UInt32]"0x80000002";
-$NSKey = "SOFTWARE\Claranet";
+$NSKey = "SOFTWARE\ClaranetNetstat";
 
 # Enumerate all the key value pairs and get the data we're after
 $NetstatOutput = $($RegProvider.EnumValues($HKLM,$NSKey).sNames | %{
