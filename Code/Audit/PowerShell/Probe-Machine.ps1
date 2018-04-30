@@ -131,7 +131,7 @@ While ($WmiTesting) {
         # Store the OS result
         $Target.Probe.Info.RemoteDiscoveredOS = $WmiResult;
 
-        # Set WinRM to successful
+        # Set WMI to successful
         $Target.Probe.RemoteConnectivity.Wmi.Successful = $True;
 
         # Stop the loop
