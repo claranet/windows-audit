@@ -19,19 +19,8 @@ Param(
 # Set EAP
 $ErrorActionPreference = "Stop";
 
-# Micro inline function for rehydrating csv rows
-Function Rehydrate-CsvRow {
-    Param($Row)
-    # Split the line on the comma separator
-    $Split = $Row.Split(",");
-
-    # Enumerate, rehydrate, join and return
-    return $(($Split | %{"""$($_)"""}) -join ",");
-}
-
-
 # Build our CMD
-$SchtasksCmd = "cmd /v /c SET COUNTER=0 & for /f ""tokens=*"" %f in ('schtasks /query /v /fo csv') do (reg add HKEY_LOCAL_MACHINE\SOFTWARE\ClaranetSchtasks /v !COUNTER! /t REG_SZ /d %f & SET /A COUNTER+=1)";
+$SchtasksCmd = 'cmd /v /c SET COUNTER=0 & for /f "tokens=*" %f in (''schtasks /query /v /fo csv'') do (SET _CURR=%f & SET _CURR=!_CURR:^"=##! & reg add HKEY_LOCAL_MACHINE\SOFTWARE\ClaranetSchtasks /v !COUNTER! /t REG_SZ /d "!_CURR!" & SET /A COUNTER+=1)';
 
 # Execute our CMD
 $Process = Invoke-WmiMethod -ComputerName $Target -Credential $Credential -Class "Win32_process" -Name "Create" -ArgumentList $SchtasksCmd;
@@ -50,34 +39,22 @@ $HKLM = [UInt32]"0x80000002";
 $STKey = "SOFTWARE\ClaranetSchtasks";
 
 # Enumerate all the key value pairs and get the data we're after
-$CurrentHeaderRow = $Null;
-$ScheduledTasksData = $($RegProvider.EnumValues($HKLM,$STKey).sNames | Sort {[Int]$_} | %{$Name = $_
-    
-    # Grab the value from the reg provider
-    $Row = $RegProvider.GetStringValue($HKLM,$STKey,$Name).sValue;
-    
-    # If the value contains header info, switch accordingly
-    if ($Row.Contains("HostName,TaskName,")) {
-        
-        # Ok let's check if we need to flush to the pipeline
-        if ($CurrentHeaderRow -ne $Null -and $CurrentDataRows.Count -gt 0) {
-            @($CurrentHeaderRow,$CurrentDataRows) | ConvertFrom-Csv;
-        } 
-
-        # Flush our variables and set the new header row
-        $CurrentHeaderRow = $(Rehydrate-CsvRow -Row $Row);
-        $CurrentDataRows  = @();
-
+$ScheduledTasksData = @($($RegProvider.EnumValues($HKLM,$STKey).sNames | Sort {[Int]$_} | %{$Name = $_
+    if ($Name -eq "0") {
+        $ScheduledTasksHeader = $RegProvider.GetStringValue($HKLM,$STKey,$Name).sValue.Replace("##",'"');
     } else {
-        $CurrentDataRows += $(Rehydrate-CsvRow -Row $Row);
+        $RegProvider.GetStringValue($HKLM,$STKey,$Name).sValue.Replace("##",'"');
     }
-});
+}));
 
 # Delete the key we created
-[Void]($RegProvider.DeleteKey($HKLM,$NSKey));
+[Void]($RegProvider.DeleteKey($HKLM,$STKey));
+
+# Rehydrate the data
+$HydratedData = @($ScheduledTasksHeader,$ScheduledTasksData) | ConvertFrom-Csv | ?{$_.HostName -ne "HostName"};
 
 # Now parse the data as normal
-$ScheduledTasksOutput = $(@($ScheduledTasksData | %{
+$ScheduledTasksOutput = $(@($HydratedData | %{
     [PSCustomObject]@{
         MachineIdentifier        = $MachineIdentifier;
         Name                     = $_.TaskName;
