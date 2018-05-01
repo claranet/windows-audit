@@ -16,4 +16,8 @@ Param(
     [String]$MachineIdentifier
 )
 
+# Set EAP
+$ErrorActionPreference = "Stop";
+
+# return the goodies
 return $(Get-WMIObject -ComputerName $Target -Credential $Credential -Class "Win32_OperatingSystem" | Select -ExpandProperty Caption);

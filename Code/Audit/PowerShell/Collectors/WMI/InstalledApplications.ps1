@@ -16,6 +16,9 @@ Param(
     [String]$MachineIdentifier
 )
 
+# Set EAP
+$ErrorActionPreference = "Stop";
+
 # Get our registry provider instance and authenticate against the target
 $RegProvider = Get-WmiObject -ComputerName $Target -Credential $Credential -List "StdRegProv" -Namespace "root\default";
 

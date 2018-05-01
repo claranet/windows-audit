@@ -16,6 +16,9 @@ Param(
     [String]$MachineIdentifier
 )
 
+# Set EAP
+$ErrorActionPreference = "Stop";
+
 # Return the goods
 return $(Get-WMIObject -ComputerName $Target -Credential $Credential -Class "Win32_Share" | Select -Property * | %{
     # Return a new PSCustomObject to the pipeline
