@@ -17,8 +17,9 @@ RUN powershell -NoProfile -ExecutionPolicy Bypass -Command " \
 "
 # Configure audit prereqs
 RUN powershell -NoProfile -ExecutionPolicy Bypass -Command " \
-      choco install -y putty; \
-      choco install -y winscp; \
+      choco install -y putty --timeout 2500; \
+      choco install -y winscp --timeout 2500; \
+      choco install -y nmap --timeout 2500; \
 "
 
 # Copy the release build output folder to the container
