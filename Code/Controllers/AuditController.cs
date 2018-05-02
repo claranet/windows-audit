@@ -277,7 +277,7 @@ namespace claranet_audit.Controllers
         public IActionResult GetTemplate()
         {
             // Declare the template structure and byte array it
-            string TemplateData = "Endpoint,Operand,Credential,OperatingSystem\r\n";
+            string TemplateData = "Endpoint,Operand,Tags\r\n";
             byte[] TemplateBytes = Encoding.ASCII.GetBytes(TemplateData);
             
             // Get our attachment content-disposition sorted
@@ -465,26 +465,24 @@ namespace claranet_audit.Controllers
             h.Operand = Properties[1];
             h.Status = 0;
             
-            // Credential needs parsing
-            if (String.IsNullOrEmpty(Properties[2]))
+            // Tags need parsing if present
+            if (!String.IsNullOrEmpty(Properties[2]))
             {
-                h.Credential = "(Default)";
-            }
-            else
-            {
-                h.Familiarity += 10;
-                h.Credential = Properties[2];
-            }
-            
-            // OperatingSystem needs parsing
-            if (String.IsNullOrEmpty(Properties[3]))
-            {
-                h.OperatingSystem = "Unknown (Initial)";
-            }
-            else
-            {
-                h.Familiarity += 100;
-                h.OperatingSystem = Properties[3];
+                // Split up the string into tokens
+                string[] tokens = Properties[2].Split('|');
+
+                // Enumerate the tokens and process them
+                foreach (string token in tokens)
+                {
+                    // Split the token into key:value
+                    string[] pair = token.Split('=');
+
+                    // Create the new key value pair
+                    KeyValuePair<string,string> k = new KeyValuePair<string, string>(pair[0],pair[1]);
+
+                    // Add a new pair to the host object
+                    h.Tags.Add(k);
+                }
             }
 
             // Add the host to the host cache
@@ -657,9 +655,7 @@ namespace claranet_audit.Controllers
         public string ID {get; set;}
         public string Endpoint {get; set;}
         public string Operand {get; set;}
-        public string Credential {get; set;}
-        public string OperatingSystem {get; set;}
-        public int Familiarity {get; set;}
+        public List<KeyValuePair<string,string>> Tags = new List<KeyValuePair<string,string>>();
         public int Status {get; set;}
         public List<string> Errors = new List<string>();
 
@@ -707,35 +703,22 @@ namespace claranet_audit.Controllers
             }
         }
 
-        // Easy inline return of familiarity text
-        public string FamiliarityString
+        // Returns a list of tags for the host
+        public List<string> TagsList
         {
             get
             {
-                // Get our familiarity string together and work out the result
-                string familiarity = "";
-                switch (this.Familiarity)
+                // Get an output string sorted
+                List<string> TagStrings = new List<string>();
+
+                // Enumerate the tags list and build the string
+                foreach (KeyValuePair<string,string> k in Tags)
                 {
-                    case 0: {
-                        familiarity = "Unknown";
-                        break;
-                    }
-                    case 10: {
-                        familiarity = "Partially known (Auth)";
-                        break;
-                    }
-                    case 100: {
-                        familiarity = "Partially known (Type)";
-                        break;
-                    }
-                    case 110: {
-                        familiarity = "Well known";
-                        break;
-                    }
+                    TagStrings.Add(String.Format("[{0} = {1}]", k.Key, k.Value));
                 }
 
-                // And return the result
-                return familiarity;
+                // And return
+                return TagStrings;
             }
         }
     }

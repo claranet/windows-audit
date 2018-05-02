@@ -73,10 +73,10 @@ try {
 }
 
 # Work out whether what type of connections we should try
-if ($Target.OperatingSystem.Contains("Windows") -or $Target.Probe.Info.NmapDiscoveredOS.Contains("Windows")) {
+if ($Target.Probe.Info.NmapDiscoveredOS.Contains("Windows")) {
     $WmiTesting = $True;
     $SshTesting = $False;
-} elseif ($Target.OperatingSystem.Contains("Linux") -or $Target.Probe.Info.NmapDiscoveredOS.Contains("Linux")) {
+} elseif ($Target.Probe.Info.NmapDiscoveredOS.Contains("Linux")) {
     $WmiTesting = $False;
     $SshTesting = $True;
 } else {
@@ -90,11 +90,7 @@ While ($WmiTesting) {
     # Ok first we need to resolve which credential we're using
     if (!$Target.Probe.Credentials.Tested) {
         # Not tried anything yet, get the known or default credential
-        $C = $(if ($($Credentials | ?{$_.ID -eq $Target.Credential})){
-            $Credentials | ?{$_.ID -eq $Target.Credential};
-        } else {
-            $Credentials | ?{$_.IsDefault -and $_.Type.Contains("Windows")};
-        });
+        $C = $Credentials | ?{$_.IsDefault -and $_.Type.Contains("Windows")};
     } else {
         $C = $Credentials | ?{
             $Target.Probe.Credentials.Tested -notcontains $_.ID -and
@@ -173,11 +169,7 @@ While ($SshTesting) {
     # Ok first we need to resolve which credential we're using
     if (!$Target.Probe.Credentials.Tested) {
         # Not tried anything yet, get the known or default credential
-        $C = $(if ($($Credentials | ?{$_.ID -eq $Target.Credential})){
-            $Credentials | ?{$_.ID -eq $Target.Credential};
-        } else {
-            $Credentials | ?{$_.IsDefault -and $_.Type.Contains("Linux")} | Select -First 1;
-        });
+        $C = $Credentials | ?{$_.IsDefault -and $_.Type.Contains("Linux")} | Select -First 1;
     } else {
         # Ok we've tried credentials previously to this, get the next one
         $C = $Credentials | ?{

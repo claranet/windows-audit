@@ -9,10 +9,8 @@
     });
     $(document).ready( function() {
         $(':file').on('fileselect', function(event, numFiles, label) {
-
             var input = $(this).parents('.input-group').find(':text'),
                 log = numFiles > 1 ? numFiles + ' files selected' : label;
-
             if( input.length ) {
                 input.val(log);
                 $(':input[id="UploadCsv"]').prop('disabled', false);
@@ -20,7 +18,6 @@
                 $(':input[id="UploadCsv"]').prop('disabled', true);
                 if( log ) alert(log);
             }
-
         });
     });
 });
@@ -30,19 +27,18 @@
 <br />
 <h4>Use this page to upload a CSV file containing the hosts you wish to scan. For an empty template file please click <a asp-controller="Audit" asp-action="GetTemplate" role="button">here.</a></h4>
 <br />
-<h4>The hosts CSV file consists of four columns;</h4>
+<h4>The hosts CSV file consists of three columns;</h4>
 <ul>
   <li><b>Endpoint</b>: This can be an IP address, CIDR block, NetBIOS name or DNS alias.</li>
   <li><b>Operand</b>: This is either an include <b>></b> or exclude <b><</b> chevron, use this to include large CIDR blocks but exclude specific hosts/blocks.</li>
-  <li><b>Credential</b>: The ID of the credential to be used in scanning, if omitted the default credential will be used for that OS type.</li>
-  <li><b>OperatingSystem</b>: Used to describe the Operating System type to cut down on scanning time. Use either <b>Linux</b> or <b>Windows</b>.</li>
+  <li><b>Tags</b>: Tags are a <b>pipe</b> seperated list of <b>key=value</b> pairs to tag the Endpoint(s) with. This data can be used for reconciliation in the analysis phase.</li>
 </ul>
 <br />
 <form method="post" asp-controller="Audit" enctype="multipart/form-data" asp-action="UploadHosts">
     <div>
         <p>Upload Hosts CSV File:</p>
         <div class="row">
-            <div class="col-lg-3">
+            <div class="col-lg-4">
                 <div class="input-group">
                     <label class="input-group-btn">
                         <span class="btn btn-primary">
@@ -52,7 +48,7 @@
                     <input type="text" class="form-control" readonly>
                 </div>
             </div>
-            <div class="col-lg-3">
+            <div class="col-lg-4">
                 <button id="UploadCsv" class="btn btn-success" type="submit" disabled/>Upload</button>
             </div>
         </div>       
@@ -64,7 +60,7 @@
         <h2>Currently Loaded Hosts</h2>
     </div>
     <div class="col-lg-6" style="padding-top: 20px;">
-         <a class="btn btn-danger float-right" asp-controller="Audit" asp-action="ClearHosts" role="button">Clear Hosts</a>
+        <a class="btn btn-danger float-right" asp-controller="Audit" asp-action="ClearHosts" role="button">Clear Hosts</a>
     </div>
 </div>
 <br />
@@ -73,9 +69,7 @@
       <tr>
           <th scope="col">Endpoint</th>
           <th scope="col">Operand</th>
-          <th scope="col">Credential</th>
-          <th scope="col">Operating System</th>
-          <th scope="col">Familiarity</th>
+          <th scope="col">Tags</th>
           <th scope="col">Status</th>
           <th scope="col">Errors</th>
       </tr>
@@ -86,11 +80,9 @@
             <tr class="table-active">
                 <th scope="row">@h.Endpoint</th>
                 <td>@h.Operand</td>
-                <td>@h.Credential</td>
-                <td>@h.OperatingSystem</td>
-                <td>@h.FamiliarityString</td>
+                <td class="text-primary">@foreach (string tag in @h.TagsList) {@tag <text><br /></text>}</td>
                 <td>@h.StatusString</td>
-                <td class="text-danger">@string.Join("\r\n", @h.Errors.ToArray())</td>
+                <td class="text-danger">@foreach (string err in @h.Errors) {@err <text><br /></text>}</td>
             </tr>
         }
   </tbody>
