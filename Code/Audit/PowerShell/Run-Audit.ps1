@@ -72,12 +72,12 @@ try {
     # Create the runspace pools and queues
     try {
         # Network probe
-        $ProbeRunspacePool = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspacePool(1, 64, $Host);
+        $ProbeRunspacePool = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspacePool(1, 16, $Host);
         $ProbeRunspacePool.Open();
         [System.Collections.ArrayList]$Probes = @();
 
         # Audit
-        $AuditRunspacePool = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspacePool(1, 64, $Host);
+        $AuditRunspacePool = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspacePool(1, 16, $Host);
         $AuditRunspacePool.Open();
         [System.Collections.ArrayList]$Audits = @();
     }
@@ -147,6 +147,11 @@ try {
                 $CompletedProbe = $_;
                 $Result = $CompletedProbe.Pipeline.EndInvoke($CompletedProbe.Result);
 
+                # Add our time taken to the probe averages
+                if ($Result.Probe.Info.TimeTaken) {
+                    $Counter.ProbeTimeSpans += $Result.Probe.Info.TimeTaken;
+                }
+
                 # Check and see whether remote access is available
                 if ($Result.Probe.RemoteConnectivity.OK) {
 
@@ -175,9 +180,6 @@ try {
                     $Counter.ProbeSuccessCount++;
                     $Counter.AuditQueueCount++;
 
-                    # And finally add our time taken to the probe averages
-                    $Counter.ProbeTimeSpans += $Result.Probe.Info.TimeTaken;
-
                 } else {
 
                     # Ok first lets increment the probe failed counters
@@ -201,6 +203,11 @@ try {
                 $CompletedAudit = $_;
                 $Result = $CompletedAudit.Pipeline.EndInvoke($CompletedAudit.Result);
 
+                # Add our time taken to the audit averages
+                if ($Result.Audit.Info.TimeTaken) {
+                    $Counter.AuditTimeSpans += $Result.Audit.Info.TimeTaken;
+                }
+
                 # Check and see whether we got to the end of the run
                 if ($Result.Audit.Info.Completed) {
                     
@@ -217,9 +224,6 @@ try {
 
                     # Write our status update
                     Write-HostUpdate -ID $Result.ID -Status 3 -Errors $Result.Errors;
-                    
-                    # Add our time taken to the audit averages
-                    $Counter.AuditTimeSpans += $Result.Audit.Info.TimeTaken;
 
                     # Export our file so we can track what we have so far
                     $ExportPath = "{0}\Results\{1}.xml" -f $RootDirectory,$Result.ID;
