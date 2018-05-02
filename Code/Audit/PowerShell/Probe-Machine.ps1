@@ -276,6 +276,22 @@ if ($Target.Probe.RemoteConnectivity.Wmi.Successful -or $Target.Probe.RemoteConn
     $Target.Probe.RemoteConnectivity.OK = $False;
 }
 
+# Set our IsDead property based on the results
+if (
+    $Target.Probe.Info.NmapDiscoveredOS -like "*Unknown*" -and
+    !$Target.Probe.Info.RemoteDiscoveredOS -and
+    !$Target.Probe.Networking.ICMP -and
+    !$Target.Probe.Networking.HostNames -and
+    !$Target.Probe.Networking.DnsAliases -and
+    !$Target.Probe.Networking.IPv4Addresses -and
+    !$Target.Probe.Networking.IPv6Addresses -and
+    !$Target.Probe.RemoteConnectivity.OK
+) {
+    $Target.Probe.IsDead = $True;
+} else {
+    $Target.Probe.IsDead = $False;
+}
+
 # Set our scan time for this host
 $EndTime = Get-Date;
 $Target.Probe.Info.TimeTaken = $(New-TimeSpan $StartTime $EndTime);

@@ -696,6 +696,10 @@ namespace claranet_audit.Controllers
                     status = "Audit Completed with Errors";
                     break;
                 }
+                case 999: {
+                    status = "Non existent host";
+                    break;
+                }
             }
 
             // And return the result

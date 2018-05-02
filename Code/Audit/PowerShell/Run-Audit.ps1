@@ -188,7 +188,11 @@ try {
                     $Counter.AuditFailedCount++;
 
                     # Post the host update
-                    Write-HostUpdate -ID $CompletedProbe.ID -Status 101 -Errors $Result.Errors;
+                    if ($Result.Probe.IsDead) {
+                        Write-HostUpdate -ID $CompletedProbe.ID -Status 999 -Errors $Result.Errors;
+                    } else {
+                        Write-HostUpdate -ID $CompletedProbe.ID -Status 101 -Errors $Result.Errors;
+                    }
                 }
 
                 # And remove the probe from the queue

@@ -382,6 +382,7 @@ Function Nmap-TargetOS {
 Function New-Probe {
 
     return $([PSCustomObject][Ordered]@{
+        IsDead = $Null;
         Info = [PSCustomObject][Ordered]@{
             TimeTaken          = $Null;
             NmapDiscoveredOS   = $Null;
