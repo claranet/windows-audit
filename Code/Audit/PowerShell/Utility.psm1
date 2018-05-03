@@ -363,15 +363,15 @@ Function Nmap-TargetOS {
     # Try and get the target's OS
     try {
         # Do the nmap scan
-        $Nmap = Invoke-Expression "nmap -oX - --script smb-os-discovery.nse $Endpoint *>&1";
-        $OS = [Regex]::Match(([Xml]$Nmap).nmaprun.host.hostscript.script.output,'OS\:\s(.*?)\n').Value.Replace("OS: ","").Trim();
+        #$Nmap = Invoke-Expression "nmap -oX - --script smb-os-discovery.nse $Endpoint *>&1";
+        #$OS = [Regex]::Match(([Xml]$Nmap).nmaprun.host.hostscript.script.output,'OS\:\s(.*?)\n').Value.Replace("OS: ","").Trim();
         
         # Check and see if we got a result
-        if ($OS) {
-            return $OS;
-        } else {
+        #if ($OS) {
+        #    return $OS;
+        #} else {
             return "Unknown (Nmap)";
-        }
+        #}
         
     } catch {
         return "Unknown (Nmap)";
