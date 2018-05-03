@@ -502,6 +502,7 @@ namespace claranet_audit.Controllers
                 AuditController.CurrentScan.InProgress = true;
                 AuditController.CurrentScan.Status = 1;
                 AuditController.CurrentScan.TotalHostsCount = AuditController.HostsCache.Count;
+                AuditController.CurrentScan.ScanStart = DateTime.Now;
 
                 // Wipe any current errors we have for the hosts
                 AuditController.HostsCache.Where(e => e.Errors.Count > 0).ToList().ForEach(er => er.Errors.Clear());
@@ -616,6 +617,7 @@ namespace claranet_audit.Controllers
 
                 // Stop the scan and close the process
                 AuditController.CurrentScan.InProgress = false;
+                AuditController.CurrentScan.ScanCompleted = DateTime.Now;
                 AuditController.ScanProcess.Close();
 
             }
@@ -625,6 +627,7 @@ namespace claranet_audit.Controllers
                 AuditController.CurrentScan.Status = 2;
                 AuditController.CurrentScan.InProgress = false;
                 AuditController.CurrentScan.ScanError = e.ToString();
+                AuditController.CurrentScan.ScanCompleted = DateTime.Now;
 
                 // Make sure we close the process
                 if (!AuditController.ScanProcess.HasExited) {
@@ -735,7 +738,25 @@ namespace claranet_audit.Controllers
         public bool InProgress {get; set;}
         public int TotalHostsCount {get; set;}
         public string ScanError {get; set;}
+        public DateTime ScanStart {get; set;}
+        public DateTime ScanCompleted {get; set;}
         
+        // Scan times
+        public string ScanStartString
+        {
+            get
+            {
+                return ScanStart.ToString("dd/MM/yyyy - HH:mm:ss");
+            }
+        }
+        public string ScanCompletedString
+        {
+            get
+            {
+                return ScanCompleted.ToString("dd/MM/yyyy - HH:mm:ss");
+            }
+        }
+
         // Status
         public int Status {get; set;}
         public string StatusString
