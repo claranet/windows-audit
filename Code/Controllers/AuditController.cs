@@ -812,7 +812,7 @@ namespace claranet_audit.Controllers
             get
             {
                 TimeSpan t = TimeSpan.FromSeconds(EstimatedSecondsRemaining);
-                return t.ToString(@"hh\:mm\:ss");
+                return t.ToString(@"dd\.hh\:mm");
             }
         }
 
