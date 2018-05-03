@@ -387,6 +387,44 @@ namespace claranet_audit.Controllers
             return File(ExportBytes, "application/octet-stream");
         }
 
+        // Method for exporting the current hosts list as a CSV file
+        public IActionResult ExportHosts()
+        {
+            // Use a stringbuilder for this
+            string o = "ID,Endpoint,Operand,Tags,Status,Errors" + System.Environment.NewLine;
+            StringBuilder s = new StringBuilder(o);
+            string fmt = "\"{0}\",\"{1}\",\"{2}\",\"{3}\",\"{4}\",\"{5}\"";
+
+            // Enumerate the hosts list and add to our data
+            foreach (Host h in HostsCache)
+            {
+                // Grab the properties for readability
+                string id = h.ID.ToString();
+                string ep = h.Endpoint;
+                string op = h.Operand;
+                string st = h.StatusString;
+                string ts = String.Join("\r\n", h.TagsList.ToArray());
+                string es = String.Join("\r\n", h.Errors.ToArray());
+
+                // Append to the output
+                s.AppendLine(String.Format(fmt,id,ep,op,ts,st,es));
+            }
+
+            // Build our export byte[] from the stringbuilder
+            byte[] ExportBytes = Encoding.UTF8.GetBytes(s.ToString());
+
+            // Get our attachment content-disposition sorted
+            var cd = new System.Net.Mime.ContentDisposition
+            {
+                FileName = String.Format("{0}-current-hosts-data.csv", GlobalScanName.ToLower()),
+                Inline = true,
+            };
+
+            // Add the cd response header and return the stream
+            Response.Headers.Add("Content-Disposition", cd.ToString());
+            return File(ExportBytes, "text/csv");
+        }
+
     }
 
     // Tools class
@@ -746,14 +784,28 @@ namespace claranet_audit.Controllers
         {
             get
             {
-                return ScanStart.ToString("dd/MM/yyyy - HH:mm:ss");
+                if (ScanStart == DateTime.MinValue)
+                {
+                    return "";
+                }
+                else 
+                {
+                    return ScanStart.ToString("dd/MM/yyyy - HH:mm:ss");
+                }
             }
         }
         public string ScanCompletedString
         {
             get
             {
-                return ScanCompleted.ToString("dd/MM/yyyy - HH:mm:ss");
+                if (ScanCompleted == DateTime.MinValue)
+                {
+                    return "";
+                }
+                else 
+                {
+                    return ScanCompleted.ToString("dd/MM/yyyy - HH:mm:ss");
+                }
             }
         }
 
