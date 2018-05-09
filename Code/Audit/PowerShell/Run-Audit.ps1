@@ -110,9 +110,10 @@ try {
 
             # Add it to the job queue and spark it up
             [Void]($Probes.Add($([PSCustomObject]@{
-                ID       = $Hostref.ID;
-                Pipeline = $Probe;
-                Result   = $Probe.BeginInvoke();
+                ID        = $Hostref.ID;
+                Processed = $False;
+                Pipeline  = $Probe;
+                Result    = $Probe.BeginInvoke();
             })));
         });
     }
@@ -137,15 +138,22 @@ try {
         });
 
         # Loop processing until we're done
-        While ($Probes.Count -gt 0 -or $Audits.Count -gt 0) {
+        While ($Probes.Where({$_.Processed -eq $False}).Count -gt 0 -or $Audits.Where({$_.Processed -eq $False}).Count -gt 0) {
             
             # Grab the completed probes and enumerate them
-            $CompletedProbes = @($Probes | ?{$_.Result.IsCompleted});
+            $CompletedProbes = @($Probes | ?{$_.Result.IsCompleted -and $_.Processed -eq $False});
             $CompletedProbes.ForEach({
 
                 # Grab the completed probe and result from the pipeline
                 $CompletedProbe = $_;
-                $Result = $CompletedProbe.Pipeline.EndInvoke($CompletedProbe.Result);
+                $ProbeError = $Null;
+
+                try {
+                    $Result = $CompletedProbe.Pipeline.EndInvoke($CompletedProbe.Result);
+                } catch {
+                    $ProbeError = @("[$(Get-Date -f "dd/MM/yy-HH:mm:ss")] [Probe Pipeline Error] $($_.Exception.Message)");
+                    Write-HostUpdate -ID $CompletedProbe.ID -Status 101 -Errors $ProbeError;
+                }
 
                 # Add our time taken to the probe averages
                 if ($Result.Probe.Info.TimeTaken) {
@@ -167,13 +175,14 @@ try {
                     $Audit.RunspacePool = $AuditRunspacePool;
 
                     # Write a status update before we light up the job
-                    Write-HostUpdate -ID $CompletedProbe.ID -Status 2 -Errors $Result.Errors;
+                    Write-HostUpdate -ID $CompletedProbe.ID -Status 2;
 
                     # Add it to the audit queue and spark it up
                     [Void]($Audits.Add($([PSCustomObject]@{
-                        ID       = $ProbeID;
-                        Pipeline = $Audit;
-                        Result   = $Audit.BeginInvoke();
+                        ID        = $ProbeID;
+                        Processed = $False;
+                        Pipeline  = $Audit;
+                        Result    = $Audit.BeginInvoke();
                     })));
 
                     # Increment the counters
@@ -196,16 +205,22 @@ try {
                 }
 
                 # And remove the probe from the queue
-                [Void]($Probes.Remove($CompletedProbe));
+                $CompletedProbe.Processed = $True;
             });
 
             # Grab the completed audits and enumerate them
-            $CompletedAudits = @($Audits | ?{$_.Result.IsCompleted});
+            $CompletedAudits = @($Audits | ?{$_.Result.IsCompleted -and $_.Processed -eq $False});
             $CompletedAudits.ForEach({
 
                 # Grab the completed audit and result from the pipeline
                 $CompletedAudit = $_;
-                $Result = $CompletedAudit.Pipeline.EndInvoke($CompletedAudit.Result);
+                
+                try {
+                    $Result = $CompletedAudit.Pipeline.EndInvoke($CompletedAudit.Result);
+                } catch {
+                    $AuditError = @("[$(Get-Date -f "dd/MM/yy-HH:mm:ss")] [Audit Pipeline Error] $($_.Exception.Message)");
+                    Write-HostUpdate -ID $CompletedAudit.ID -Status 201 -Errors $AuditError;
+                }
 
                 # Add our time taken to the audit averages
                 if ($Result.Audit.Info.TimeTaken) {
@@ -242,7 +257,7 @@ try {
                 }
 
                 # And remove the audit from the queue
-                [Void]($Audits.Remove($CompletedAudit));
+                $CompletedAudit.Processed = $True;
             });
 
             # And write our global status update
