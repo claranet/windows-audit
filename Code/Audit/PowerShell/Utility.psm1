@@ -615,7 +615,7 @@ Function Get-AuditScripts {
 
         [Parameter(Mandatory=$False)]
         [ValidateNotNullOrEmpty()]
-        [PSCustomObject]$NonWindowsData
+        [PSCustomObject]$SemanticData
     )
 
     # Build the root directory to search
@@ -626,32 +626,95 @@ Function Get-AuditScripts {
         "WMI" {"*.ps1"}
         "SSH" {"*.sh"}
     });
+
+    # Get an array to hold our audit sections
+    $AuditSections = @();
     
-    # Switch here on whether we're processing windows or not
-    if ($NonWindowsData) {
-        # Ok this is where it gets interesting
+    # Check here if we have semantic data to process
+    if ($SemanticData) {
+        
+        # See if we can find distro:version specific scripting
+        $DistroSpecific = Get-ChildItem $ScriptDirectory -Directory | ?{$_.Name.Contains($SemanticData.DISTRIB_ID.ToLower())};
 
-        # Build our matcher string
-        $MatcherString = "{0}-{1}" -f $NonWindowsData.DISTRIB_ID.ToLower(),$NonWindowsData.DISTRIB_RELEASE;
+        # Check to see if we found a folder
+        if ($DistroSpecific) {
+            
+            # Let's split up the name and get some properties
+            $Properties    = $DistroSpecific.Name.Split("#");
+            $TargetVersion = [Version]($Properties[1]);
+            $Modifier      = $Properties[2];
+            $SourceVersion = [Version]($SemanticData.VERSION_ID);
 
+            # Switch based on our modifier to determine if we should pull these
+            if ($(Switch ($Modifier) {
+                "-"  {$TargetVersion -lt $SourceVersion}
+                "+"  {$TargetVersion -gt $SourceVersion}
+                "="  {$TargetVersion -eq $SourceVersion}
+                "+=" {$TargetVersion -ge $SourceVersion}
+                "-=" {$TargetVersion -le $SourceVersion}
+            })) {
+                Get-SpecificAuditScripts -Directory $DistroSpecific.FullName -ScriptType $ScriptType | %{$AuditSections += $_};
+            }
+        } 
+    } 
+    
+    # Switch here based on script type
+    if ($ScriptType -eq "SSH") {
+        
+        # Get the Generic directory in scope
+        $GenericFolder = "$ScriptDirectory\Generic";
+        
+        # Enumerate the generic scripts
+        Get-SpecificAuditScripts -Directory $GenericFolder -ScriptType $ScriptType | %{
 
+            # Grab the script segment from the pipeline
+            $ScriptSegment = $_;
+
+            # Make sure we don't overwrite semantic scripting here
+            if (($AuditSections | ?{$_.Name -eq $ScriptSegment.Name}).Count -eq 0) {
+                $AuditSections += $ScriptSegment;
+            }
+        }
     } else {
         # Return Windows PowerShell scripting
-        $AuditSections = @($(Get-ChildItem $ScriptDirectory -Recurse $Extension | %{
-            # Exclude the connection check script
-            if (!$_.Name.Contains("_ConnectionCheck")) {
-                [PSCustomObject]@{
-                    Name        = $_.BaseName;
-                    Script      = $_.FullName;
-                    Completed   = $False;
-                    RetryCount  = 0;
-                    Errors      = @();
-                    Data        = $Null;
-                }
-            }
-        }));
+        $AuditSections = Get-SpecificAuditScripts -Directory $ScriptDirectory -ScriptType $ScriptType
     }
 
     # And return the data
     return $AuditSections;  
+}
+
+# Helper function to return an array of audit sections
+Function Get-SpecificAuditScripts {
+    [Cmdletbinding()]
+    Param(
+        [Parameter(Mandatory=$True)]
+        [ValidateScript({Test-Path $_})]
+        [String]$Directory,
+
+        [Parameter(Mandatory=$True)]
+        [ValidateSet("SSH","WMI")]
+        [String]$ScriptType
+    )
+
+    # Work out which script extension we're using
+    $Extension = $(Switch($ScriptType){
+        "WMI" {"*.ps1"}
+        "SSH" {"*.sh"}
+    });
+
+    # Return the scripts we need
+    return @($(Get-ChildItem $Directory -Recurse $Extension | %{
+        # Exclude the connection check script
+        if (!$_.Name.Contains("_ConnectionCheck")) {
+            [PSCustomObject]@{
+                Name        = $_.BaseName;
+                Script      = $_.FullName;
+                Completed   = $False;
+                RetryCount  = 0;
+                Errors      = @();
+                Data        = $Null;
+            }
+        }
+    }));
 }
