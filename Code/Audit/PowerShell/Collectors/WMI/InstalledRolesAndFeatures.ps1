@@ -97,7 +97,7 @@ if ($OSVersion.Major -lt 6) {
 
 } else {
     # Get the optional features
-    Get-WmiObject -ComputerName $Target -Credential $Credential -Class "Win32_OptionalFeature" | %{
+    Get-WmiObject -ComputerName $Target -Credential $Credential -Class "Win32_OptionalFeature" -ErrorAction SilentlyContinue | %{
         $Output += $([PSCustomObject]@{
             MachineIdentifier  = $MachineIdentifier;
             Name               = $_.Name;
