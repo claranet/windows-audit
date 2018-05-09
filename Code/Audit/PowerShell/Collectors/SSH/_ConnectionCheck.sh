@@ -4,4 +4,4 @@
 SYSTEMUNAME=$(uname -a)
 
 # And return
-echo $SYSTEMUNAME
+echo '{"uname":"'$SYSTEMUNAME'"}'

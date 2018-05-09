@@ -238,7 +238,7 @@ While ($SshTesting) {
         $Target.Probe.RemoteConnectivity.Authentication = $Authentication;
 
         # Store the OS result
-        $Target.Probe.Info.RemoteDiscoveredOS = $SshResult;
+        $Target.Probe.Info.RemoteDiscoveredOS = $SshResult.uname;
 
         # Set ssh to successful
         $Target.Probe.RemoteConnectivity.Ssh.Successful = $True;
