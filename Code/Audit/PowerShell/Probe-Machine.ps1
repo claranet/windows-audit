@@ -235,10 +235,10 @@ While ($SshTesting) {
         # Ok if we get this far we know the settings on this run were good
         $Target.Probe.Credentials.Successful = $C.ID;
         $Target.Probe.Credentials.Tested += $C.ID;
-        $Target.Probe.RemoteConnectivity.Authentication = $Authentication;
+        $Target.Probe.RemoteConnectivity.Ssh.Authentication = $Authentication;
 
         # Store the OS result
-        $Target.Probe.Info.RemoteDiscoveredOS = $SshResult.uname;
+        $Target.Probe.Info.RemoteDiscoveredOS = $SshResult;
 
         # Set ssh to successful
         $Target.Probe.RemoteConnectivity.Ssh.Successful = $True;
