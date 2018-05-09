@@ -345,35 +345,35 @@ namespace claranet_audit.Controllers
             ZipFile.CreateFromDirectory(ResultsRoot, ZipFilePath, CompressionLevel.Fastest, false);
 
             // Read up the bytes from the exported zip file and remove it
-            byte[] UnencryptedBytes = System.IO.File.ReadAllBytes(ZipFilePath);
-            System.IO.File.Delete(ZipFilePath);
+            byte[] ExportBytes = System.IO.File.ReadAllBytes(ZipFilePath);
+            //System.IO.File.Delete(ZipFilePath);
 
             // Get our export bytes array declared
-            byte[] ExportBytes;
+            //byte[] ExportBytes;
             
             // Get our memory stream to hold our exported data
-            using (MemoryStream ExportStream = new MemoryStream())
-            {
+            //using (MemoryStream ExportStream = new MemoryStream())
+            //{
                 // Our Rijndael provider
-                RijndaelManaged R = new RijndaelManaged();
+                //RijndaelManaged R = new RijndaelManaged();
 
                 // Use a cryptostream to encrypt the data
-                using (CryptoStream cs = new CryptoStream(ExportStream,R.CreateEncryptor(RijndaelKey,RijndaelIV),CryptoStreamMode.Write))
-                {
+                //using (CryptoStream cs = new CryptoStream(ExportStream,R.CreateEncryptor(RijndaelKey,RijndaelIV),CryptoStreamMode.Write))
+                //{
                     // Import the file and write to the cryptostream
-                    using (MemoryStream ImportStream = new MemoryStream(UnencryptedBytes))
-                    {
-                        int data;
-                        while ((data = ImportStream.ReadByte()) != -1)
-                        {
-                            cs.WriteByte((byte)data);
-                        }
-                    }
+                    //using (MemoryStream ImportStream = new MemoryStream(UnencryptedBytes))
+                    //{
+                        //int data;
+                        //while ((data = ImportStream.ReadByte()) != -1)
+                        //{
+                            //cs.WriteByte((byte)data);
+                        //}
+                    //}
 
                     // Stream up the encrypted content for the client download
-                    ExportBytes = ExportStream.ToArray();
-                }
-            }
+                    //ExportBytes = ExportStream.ToArray();
+                //}
+            //}
 
             // Get our attachment content-disposition sorted
             var cd = new System.Net.Mime.ContentDisposition
