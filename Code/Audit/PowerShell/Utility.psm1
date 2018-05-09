@@ -521,13 +521,17 @@ Function Invoke-Ssh {
     Switch($AuthenticationMethod) {
         "Password" {
             if ($AcceptHostKey.IsPresent) {
-                $Result = Invoke-Expression $("echo y | plink -ssh $Target -P 22 -l $Username -pw $Password -batch -m $ScriptPath") | ConvertFrom-Json;
+                [Void]($Result = Invoke-Expression $("echo y | plink -ssh $Target -P 22 -l $Username -pw $Password -m $ScriptPath"));
             } else {
-                $Result = Invoke-Expression $("plink -ssh $Target -P 22 -l $Username -pw $Password -batch -m $ScriptPath") | ConvertFrom-Json;
+                $Result = Invoke-Expression $("plink -ssh $Target -P 22 -l $Username -pw $Password -batch -m $ScriptPath");
             }
         }
         "PrivateKey" {
-            $Result = Invoke-Expression $("plink -ssh $Target -P 22 -l $Username -i $PrivateKeyFilePath -batch -m $ScriptPath") | ConvertFrom-Json;
+            if ($AcceptHostKey.IsPresent) {
+                [Void]($Result = Invoke-Expression $("echo y | plink -ssh $Target -P 22 -l $Username -i $PrivateKeyFilePath -m $ScriptPath"));
+            } else {
+                $Result = Invoke-Expression $("plink -ssh $Target -P 22 -l $Username -i $PrivateKeyFilePath -batch -m $ScriptPath");
+            }
         }
         "PrivateKeyWithPassphrase" {
             # Wrap the ssh connection in a Process so we can write to stdin
@@ -550,6 +554,12 @@ Function Invoke-Ssh {
             $Cmd = "plink -ssh $Target -P 22 -l $Username -i $PrivateKeyFilePath -m $ScriptPath";
             $Process.StandardInput.Write($Cmd + [System.Environment]::NewLine);
                 
+            # If we're accepting host keys, wait for 2 seconds and write yes to stdin
+            if ($AcceptHostKey.IsPresent) {
+                Start-Sleep -Seconds 2;
+                $Process.StandardInput.Write("yes" + [System.Environment]::NewLine);
+            }
+
             # Wait for 2 seconds and write the private key passphrase to stdin
             Start-Sleep -Seconds 2;
             $Process.StandardInput.Write($PrivateKeyPassphrase + [System.Environment]::NewLine);
@@ -573,13 +583,75 @@ Function Invoke-Ssh {
             # Process the result
             $StartIndex = $Stdout.IndexOf("{");
             $EndIndex = $Stdout.LastIndexOf("}") - $StartIndex + 1;
-            $Result = $Stdout.Substring($StartIndex,$EndIndex) | ConvertFrom-Json;       
+            $Result = $Stdout.Substring($StartIndex,$EndIndex);
         }
+    }
+
+    # Clean up the result
+    if ($Result.Contains("Store key in cache? (y/n)")) {
+        $Parsed = $Result.Split("Store key in cache? (y/n) ")[1] | ConvertFrom-Json;
+    } else {
+        $Parsed = $Result | ConvertFrom-Json;
     }
     
     # Add the machine identifier
-    $Result.MachineIdentifier = $MachineIdentifier;
+    $Parsed.MachineIdentifier = $MachineIdentifier;
     
     # And return
-    return $Result;
+    return $Parsed;
+}
+
+# Returns an array of audit sections based on params
+Function Get-AuditScripts {
+    [Cmdletbinding()]
+    Param(
+        [Parameter(Mandatory=$True)]
+        [ValidateScript({Test-Path $_})]
+        [String]$RootDirectory,
+
+        [Parameter(Mandatory=$True)]
+        [ValidateSet("SSH","WMI")]
+        [String]$ScriptType,
+
+        [Parameter(Mandatory=$False)]
+        [ValidateNotNullOrEmpty()]
+        [PSCustomObject]$NonWindowsData
+    )
+
+    # Build the root directory to search
+    $ScriptDirectory = "$RootDirectory\PowerShell\Collectors\$ScriptType";
+
+    # Work out which script extension we're using
+    $Extension = $(Switch($ScriptType){
+        "WMI" {"*.ps1"}
+        "SSH" {"*.sh"}
+    });
+    
+    # Switch here on whether we're processing windows or not
+    if ($NonWindowsData) {
+        # Ok this is where it gets interesting
+
+        # Build our matcher string
+        $MatcherString = "{0}-{1}" -f $NonWindowsData.DISTRIB_ID.ToLower(),$NonWindowsData.DISTRIB_RELEASE;
+
+
+    } else {
+        # Return Windows PowerShell scripting
+        $AuditSections = @($(Get-ChildItem $ScriptDirectory -Recurse $Extension | %{
+            # Exclude the connection check script
+            if (!$_.Name.Contains("_ConnectionCheck")) {
+                [PSCustomObject]@{
+                    Name        = $_.BaseName;
+                    Script      = $_.FullName;
+                    Completed   = $False;
+                    RetryCount  = 0;
+                    Errors      = @();
+                    Data        = $Null;
+                }
+            }
+        }));
+    }
+
+    # And return the data
+    return $AuditSections;  
 }
