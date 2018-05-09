@@ -72,12 +72,12 @@ try {
     # Create the runspace pools and queues
     try {
         # Network probe
-        $ProbeRunspacePool = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspacePool(1, 16, $Host);
+        $ProbeRunspacePool = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspacePool(1, 8, $Host);
         $ProbeRunspacePool.Open();
         [System.Collections.ArrayList]$Probes = @();
 
         # Audit
-        $AuditRunspacePool = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspacePool(1, 16, $Host);
+        $AuditRunspacePool = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspacePool(1, 56, $Host);
         $AuditRunspacePool.Open();
         [System.Collections.ArrayList]$Audits = @();
     }
@@ -111,7 +111,6 @@ try {
             # Add it to the job queue and spark it up
             [Void]($Probes.Add($([PSCustomObject]@{
                 ID        = $Hostref.ID;
-                Processed = $False;
                 Pipeline  = $Probe;
                 Result    = $Probe.BeginInvoke();
             })));
@@ -138,10 +137,10 @@ try {
         });
 
         # Loop processing until we're done
-        While ($Probes.Where({$_.Processed -eq $False}).Count -gt 0 -or $Audits.Where({$_.Processed -eq $False}).Count -gt 0) {
+        While ($Probes.Count -gt 0 -or $Audits.Count -gt 0) {
             
             # Grab the completed probes and enumerate them
-            $CompletedProbes = @($Probes | ?{$_.Result.IsCompleted -and $_.Processed -eq $False});
+            $CompletedProbes = @($Probes | ?{$_.Result.IsCompleted});
             $CompletedProbes.ForEach({
 
                 # Grab the completed probe and result from the pipeline
@@ -179,8 +178,7 @@ try {
 
                     # Add it to the audit queue and spark it up
                     [Void]($Audits.Add($([PSCustomObject]@{
-                        ID        = $ProbeID;
-                        Processed = $False;
+                        ID        = $CompletedProbe.ID;
                         Pipeline  = $Audit;
                         Result    = $Audit.BeginInvoke();
                     })));
@@ -205,11 +203,11 @@ try {
                 }
 
                 # And remove the probe from the queue
-                $CompletedProbe.Processed = $True;
+                [Void]($Probes.Remove($CompletedProbe));
             });
 
             # Grab the completed audits and enumerate them
-            $CompletedAudits = @($Audits | ?{$_.Result.IsCompleted -and $_.Processed -eq $False});
+            $CompletedAudits = @($Audits | ?{$_.Result.IsCompleted});
             $CompletedAudits.ForEach({
 
                 # Grab the completed audit and result from the pipeline
@@ -257,11 +255,14 @@ try {
                 }
 
                 # And remove the audit from the queue
-                $CompletedAudit.Processed = $True;
+                [Void]($Audits.Remove($CompletedAudit));
             });
 
             # And write our global status update
             Write-StatusUpdate -Counter $Counter;
+
+            # Invoke the bin men
+            [System.Gc]::Collect();
 
             # Dynamic throttle to prevent loop burn
             if ($CompletedProbes.Count -gt 0 -or $CompletedAudits.Count -gt 0) {
