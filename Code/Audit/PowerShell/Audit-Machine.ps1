@@ -22,6 +22,10 @@ $ProgressPreference    = "SilentlyContinue";
 $WarningPreference     = "SilentlyContinue";
 $StartTime             = Get-Date;
 
+# If we get as far as an audit we can forgive previous probe sins
+$Target = $Target | Select -Property * -ExcludeProperty Errors;
+$Target | Add-Member -MemberType NoteProperty -Name Errors -Value @();
+
 # Import the utils module
 try {
     Import-Module "$RootDirectory\PowerShell\Utility.psm1" -Force -DisableNameChecking;
