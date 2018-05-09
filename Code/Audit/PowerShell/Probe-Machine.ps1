@@ -200,7 +200,8 @@ While ($SshTesting) {
                                 -Username $C.Username `
                                 -Password $C.Password `
                                 -ScriptPath "$RootDirectory\PowerShell\Collectors\SSH\_ConnectionCheck.sh" `
-                                -MachineIdentifier $Target.ID;
+                                -MachineIdentifier $Target.ID `
+                                -AcceptHostKey;
             }
             "Linux/Unix Private Key file" {
                 # Set some flags we can use later if successful
@@ -212,7 +213,8 @@ While ($SshTesting) {
                                 -Username $C.Username `
                                 -PrivateKeyFilePath $C.PrivateKeyFilePath `
                                 -ScriptPath "$RootDirectory\PowerShell\Collectors\SSH\_ConnectionCheck.sh" `
-                                -MachineIdentifier $Target.ID;
+                                -MachineIdentifier $Target.ID `
+                                -AcceptHostKey;
             }
             "Linux/Unix Private Key file with Passphrase" {
                 # Set some flags we can use later if successful
@@ -225,7 +227,8 @@ While ($SshTesting) {
                                 -PrivateKeyFilePath $C.PrivateKeyFilePath `
                                 -PrivateKeyPassphrase $C.PrivateKeyPassphrase `
                                 -ScriptPath "$RootDirectory\PowerShell\Collectors\SSH\_ConnectionCheck.sh" `
-                                -MachineIdentifier $Target.ID;
+                                -MachineIdentifier $Target.ID `
+                                -AcceptHostKey;
             }
         }
 

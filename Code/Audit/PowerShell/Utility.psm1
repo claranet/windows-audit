@@ -496,7 +496,11 @@ Function Invoke-Ssh {
         # The Machine identifer we'll tag the result with
         [Parameter(Mandatory=$True)]
         [ValidateScript({$_ -Match "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"})]
-        [String]$MachineIdentifier
+        [String]$MachineIdentifier,
+
+        # Accepts the host key prompt
+        [Parameter(Mandatory=$False)]
+        [Switch]$AcceptHostKey
     )
     
     # Set EAP
@@ -516,7 +520,11 @@ Function Invoke-Ssh {
     # Switch on the auth method
     Switch($AuthenticationMethod) {
         "Password" {
-            $Result = Invoke-Expression $("plink -ssh $Target -P 22 -l $Username -pw $Password -batch -m $ScriptPath") | ConvertFrom-Json;
+            if ($AcceptHostKey.IsPresent) {
+                $Result = Invoke-Expression $("echo y | plink -ssh $Target -P 22 -l $Username -pw $Password -batch -m $ScriptPath") | ConvertFrom-Json;
+            } else {
+                $Result = Invoke-Expression $("plink -ssh $Target -P 22 -l $Username -pw $Password -batch -m $ScriptPath") | ConvertFrom-Json;
+            }
         }
         "PrivateKey" {
             $Result = Invoke-Expression $("plink -ssh $Target -P 22 -l $Username -i $PrivateKeyFilePath -batch -m $ScriptPath") | ConvertFrom-Json;
