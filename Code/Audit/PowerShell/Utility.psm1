@@ -496,11 +496,7 @@ Function Invoke-Ssh {
         # The Machine identifer we'll tag the result with
         [Parameter(Mandatory=$True)]
         [ValidateScript({$_ -Match "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"})]
-        [String]$MachineIdentifier,
-
-        # Accepts the host key prompt
-        [Parameter(Mandatory=$False)]
-        [Switch]$AcceptHostKey
+        [String]$MachineIdentifier
     )
     
     # Set EAP
@@ -516,82 +512,94 @@ Function Invoke-Ssh {
             "Password";
         }
     );
-    
-    # Switch on the auth method
-    Switch($AuthenticationMethod) {
-        "Password" {
-            if ($AcceptHostKey.IsPresent) {
-                [Void]($Result = Invoke-Expression $("echo y | plink -ssh $Target -P 22 -l $Username -pw $Password -m $ScriptPath"));
-            } else {
-                $Result = Invoke-Expression $("plink -ssh $Target -P 22 -l $Username -pw $Password -batch -m $ScriptPath");
-            }
-        }
-        "PrivateKey" {
-            if ($AcceptHostKey.IsPresent) {
-                [Void]($Result = Invoke-Expression $("echo y | plink -ssh $Target -P 22 -l $Username -i $PrivateKeyFilePath -m $ScriptPath"));
-            } else {
-                $Result = Invoke-Expression $("plink -ssh $Target -P 22 -l $Username -i $PrivateKeyFilePath -batch -m $ScriptPath");
-            }
-        }
-        "PrivateKeyWithPassphrase" {
-            # Wrap the ssh connection in a Process so we can write to stdin
-            $ProcessStartInfo = New-Object System.Diagnostics.ProcessStartInfo;
-            $Process = New-Object System.Diagnostics.Process;
-    
-            # Set the startinfo object properties and set the process to use this startinfo
-            $ProcessStartInfo.FileName = $($env:windir + "\System32\cmd.exe");
-            $ProcessStartInfo.CreateNoWindow = $True;
-            $ProcessStartInfo.UseShellExecute = $False;
-            $ProcessStartInfo.RedirectStandardOutput = $True;
-            $ProcessStartInfo.RedirectStandardInput = $True;
-            $ProcessStartInfo.RedirectStandardError = $True;
-            $Process.StartInfo = $ProcessStartInfo;
-    
-            # Start the process
-            [Void]($Process.Start());
-    
-            # Cmd and execute
-            $Cmd = "plink -ssh $Target -P 22 -l $Username -i $PrivateKeyFilePath -m $ScriptPath";
-            $Process.StandardInput.Write($Cmd + [System.Environment]::NewLine);
-                
-            # If we're accepting host keys, wait for 2 seconds and write yes to stdin
-            if ($AcceptHostKey.IsPresent) {
-                Start-Sleep -Seconds 2;
-                $Process.StandardInput.Write("yes" + [System.Environment]::NewLine);
-            }
 
-            # Wait for 2 seconds and write the private key passphrase to stdin
-            Start-Sleep -Seconds 2;
-            $Process.StandardInput.Write($PrivateKeyPassphrase + [System.Environment]::NewLine);
+    # Wrap the ssh connection in a Process so we can write to stdin
+    $ProcessStartInfo = New-Object System.Diagnostics.ProcessStartInfo;
+    $Process = New-Object System.Diagnostics.Process;
     
-            # Close stdin now we're done with it
-            $Process.StandardInput.Close();
+    # Set the startinfo object properties and set the process to use this startinfo
+    $ProcessStartInfo.FileName = $($env:windir + "\System32\cmd.exe");
+    $ProcessStartInfo.CreateNoWindow = $True;
+    $ProcessStartInfo.UseShellExecute = $False;
+    $ProcessStartInfo.RedirectStandardOutput = $True;
+    $ProcessStartInfo.RedirectStandardInput = $True;
+    $ProcessStartInfo.RedirectStandardError = $True;
+    $Process.StartInfo = $ProcessStartInfo;
     
-            # Block the exit until completion
-            $Process.WaitForExit();
+    # Start the process
+    [Void]($Process.Start());
     
-            # Grab stderr, stdout and exit code in case we need to throw
-            $Stderr = $Process.StandardError.ReadToEnd();
-            $Stdout = $Process.StandardOutput.ReadToEnd();
-            $Status = $Process.ExitCode;
-    
-            # Check our results first
-            if (![String]::IsNullOrEmpty($Stderr) -or $Status -gt 0) {
-                throw $Stderr;
-            }
-    
-            # Process the result
-            $StartIndex = $Stdout.IndexOf("{");
-            $EndIndex = $Stdout.LastIndexOf("}") - $StartIndex + 1;
-            $Result = $Stdout.Substring($StartIndex,$EndIndex);
+    # We need to switch here dependent on the connection method
+    Switch -Regex ($AuthenticationMethod) {
+        "Password" {
+            $Cmd = "plink -ssh $Target -P 22 -l $Username -pw $Password -m $ScriptPath";
+        }
+        "PrivateKey*" {
+            $Cmd = "plink -ssh $Target -P 22 -l $Username -i $PrivateKeyFilePath -m $ScriptPath";
         }
     }
 
+    # Exec the cmd
+    $Process.StandardInput.Write($Cmd + [System.Environment]::NewLine);
+
+    # Check and see whether stderr has asked for the host key
+    if ($Process.StandardError.ReadLineAsync().Result -like "*The server's host key is not cached in the registry.*") {
+        Start-Sleep -Seconds 1;
+        $Process.StandardInput.Write("yes" + [System.Environment]::NewLine);
+    }
+
+    # Wait for 2 seconds and write the private key passphrase to stdin if required
+    if ($AuthenticationMethod -eq "PrivateKeyWithPassphrase") {
+        Start-Sleep -Seconds 2;
+        $Process.StandardInput.Write($PrivateKeyPassphrase + [System.Environment]::NewLine);
+    }
+
+    # Close stdin now we're done with it
+    $Process.StandardInput.Close();
+    
+    # Block the exit until completion
+    $Process.WaitForExit();
+    
+    # Grab stderr, stdout and exit code in case we need to throw
+    $Stderr = $Process.StandardError.ReadToEnd();
+    $Stdout = $Process.StandardOutput.ReadToEnd();
+    $Status = $Process.ExitCode;
+
+    # Parse stderr and remove the trash
+    $ParsedStderr = $($Stderr | ?{
+        $_ -notlike "*The server's host key is not cached in the registry.*" -and
+        $_ -notlike "*have no guarantee that the server is the computer you*" -and
+        $_ -notlike "*think it is.*" -and
+        $_ -notlike "*The server's ssh* key fingerprint is:*" -and
+        $_ -notlike "*ssh-*" -and
+        $_ -notlike "*If you trust this host, enter*" -and
+        $_ -notlike "*PuTTY's cache and carry on connecting.*" -and
+        $_ -notlike "*If you want to carry on connecting just once, without*" -and
+        $_ -notlike "*adding the key to the cache, enter*" -and
+        $_ -notlike "*If you do not trust this host, press Return to abandon the*" -and
+        $_ -notlike "*connection.*" -and
+        $_ -notlike "*Store key in cache? (y/n)*"
+    }) -Join " ";
+    
+    # Check our results first
+    if (![String]::IsNullOrEmpty($ParsedStderr) -or $Status -gt 0) {
+        throw "SSH Connection failed with exception: $ParsedStderr";
+    }
+    
+    # Process the result
+    $StartIndex = $Stdout.IndexOf("{");
+    $EndIndex = $Stdout.LastIndexOf("}") - $StartIndex + 1;
+    $Result = $Stdout.Substring($StartIndex,$EndIndex);
+
+    # Clear up the trash
+    $Process.Close();
+    $Process.Dispose();
+
     # Clean up the result
-    if ($Result.Contains("Store key in cache? (y/n)")) {
-        $Parsed = $Result.Split("Store key in cache? (y/n) ")[1] | ConvertFrom-Json;
-    } else {
+    try {
         $Parsed = $Result | ConvertFrom-Json;
+    } catch {
+        throw "Unable to deserialise Json from SSH target with exception: $($_.Exception.Message)";
     }
     
     # Add the machine identifier
