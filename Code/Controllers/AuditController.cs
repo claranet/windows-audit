@@ -31,6 +31,7 @@ namespace claranet_audit.Controllers
         public static readonly string ResultsRoot = Path.Combine(StorageRoot,"Results");
         public static readonly string PowerShellRoot = Path.Combine(StorageRoot,"PowerShell");
         public static readonly string DataRoot = Path.Combine(StorageRoot, "Data");
+        public static readonly string QueueRoot = Path.Combine(StorageRoot, "DiskQueue");
 
         // Cache objects
         public static List<Host> HostsCache = new List<Host>();
@@ -118,6 +119,11 @@ namespace claranet_audit.Controllers
                 if (!Directory.Exists(DataRoot))
                 {
                     Directory.CreateDirectory(DataRoot);
+                }
+
+                if (!Directory.Exists(QueueRoot))
+                {
+                    Directory.CreateDirectory(QueueRoot);
                 }
 
                 // Set our global scan name and clear the first run flag
