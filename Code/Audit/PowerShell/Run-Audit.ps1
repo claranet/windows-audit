@@ -77,7 +77,7 @@ try {
         [System.Collections.ArrayList]$Probes = @();
 
         # Audit
-        $AuditRunspacePool = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspacePool(1, 56, $Host);
+        $AuditRunspacePool = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspacePool(1, 32, $Host);
         $AuditRunspacePool.Open();
         [System.Collections.ArrayList]$Audits = @();
     }
@@ -176,12 +176,26 @@ try {
                     # Write a status update before we light up the job
                     Write-HostUpdate -ID $CompletedProbe.ID -Status 2;
 
-                    # Add it to the audit queue and spark it up
-                    [Void]($Audits.Add($([PSCustomObject]@{
-                        ID        = $CompletedProbe.ID;
-                        Pipeline  = $Audit;
-                        Result    = $Audit.BeginInvoke();
-                    })));
+                    # Ok we need to check what the current audit queue is here
+                    if ($Audits.Count -lt 50) {
+                        # Add it to the audit queue and spark it up
+                        [Void]($Audits.Add($([PSCustomObject]@{
+                            ID        = $CompletedProbe.ID;
+                            Pipeline  = $Audit;
+                            Result    = $Audit.BeginInvoke();
+                        })));
+                    } else {
+                        # Ok the queue is busy, create the job but don't light it up
+                        $DiskJob = [PSCustomObject]@{
+                            ID        = $CompletedProbe.ID;
+                            Pipeline  = $Audit;
+                            Result    = $Null;
+                        }
+
+                        # And back the job off to disk
+                        $Filename = "{0}\DiskQueue\{1}.xml" -f $RootDirectory,$CompletedProbe.ID;
+                        $DiskJob | Export-CliXml -Path $Filename -Force;
+                    }
 
                     # Increment the counters
                     $Counter.ProbeSuccessCount++;
@@ -258,19 +272,36 @@ try {
                 [Void]($Audits.Remove($CompletedAudit));
             });
 
-            # And write our global status update
-            Write-StatusUpdate -Counter $Counter;
+            # Bring in some jobs from disk to pad the queue out dependent on count
+            if ($Audits.Count -lt 50) {
+                
+                # Get the queue delta
+                $Delta = 50 - $Audits.Count;
+
+                # Get some jobs from disk
+                Get-ChildItem "$RootDirectory\DiskQueue" "*.xml" | Select -First $Delta | %{
+
+                    # Get the jobject
+                    $Jobject = Import-Clixml -Path $_.FullName;
+
+                    # Light it up
+                    $Jobject.Result = $Jobject.Pipeline.BeginInvoke();
+
+                    # Add to the queue
+                    [Void]($Audits.Add($Jobject));
+                }
+            }
 
             # Invoke the bin men
             [System.Gc]::Collect();
 
-            # Dynamic throttle to prevent loop burn
+            # Only write an update if something has happened
             if ($CompletedProbes.Count -gt 0 -or $CompletedAudits.Count -gt 0) {
-                Start-Sleep -Milliseconds 50;
-            } else {
-                Start-Sleep -Seconds 2;
+                Write-StatusUpdate -Counter $Counter;
             }
 
+            # And sleep to keep the private working set down
+            Start-Sleep -Seconds 60;
         }
         
     } catch {
