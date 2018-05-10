@@ -108,7 +108,7 @@ if ($OSVersion.Major -lt 6) {
     }
 
     # Get all the features
-    Get-WmiObject -ComputerName $Target -Credential $Credential -Class "Win32_ServerFeature" | %{
+    Get-WmiObject -ComputerName $Target -Credential $Credential -Class "Win32_ServerFeature" -ErrorAction SilentlyContinue | %{
         $Output += $([PSCustomObject]@{
             MachineIdentifier  = $MachineIdentifier;
             Name               = $_.Name;
