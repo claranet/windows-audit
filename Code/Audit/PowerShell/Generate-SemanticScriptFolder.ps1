@@ -44,7 +44,6 @@ $Params = @{
     Password          = $Password;
     ScriptPath        = "$CurrentDirectory\Collectors\SSH\_ConnectionCheck.sh";
     MachineIdentifier = [Guid]::NewGuid().Guid;
-    AcceptHostKey     = $True;
 }
 $Result = Invoke-SSH @Params;
 

@@ -462,7 +462,131 @@ Function Invoke-Wmi {
     return $Result;
 }
 
-# Fat wrapper around plink for secure shell
+# Async terminating process handler borrowed from elsewhere for now
+Function Invoke-Process {
+    [OutputType([PSCustomObject])]
+    [CmdletBinding()]
+    param
+    (
+        [Parameter(Mandatory = 0, Position = 0)]
+        [string]$FileName = "PowerShell.exe",
+
+        [Parameter(Mandatory = 0, Position = 1)]
+        [string]$Arguments = "",
+        
+        [Parameter(Mandatory = 0, Position = 2)]
+        [string]$WorkingDirectory = ".",
+
+        [Parameter(Mandatory = 0, Position = 3)]
+        [int]$TimeoutMS = 20
+    )
+
+    end
+    {
+        try
+        {
+            # new Process
+            $process = NewProcess -FileName $FileName -Arguments $Arguments -WorkingDirectory $WorkingDirectory
+                
+            # Event Handler for Output
+            $stdEvent = Register-ObjectEvent -InputObject $process -EventName OutputDataReceived -Action $scripBlock -MessageData $stdSb
+            $errorEvent = Register-ObjectEvent -InputObject $process -EventName ErrorDataReceived -Action $scripBlock -MessageData $errorSb
+
+            # execution
+            $process.Start() > $null
+            $process.BeginOutputReadLine()
+            $process.BeginErrorReadLine()
+
+            # wait for complete
+            WaitProcessComplete -Process $process -TimeoutMS $TimeoutMS
+
+            # verbose Event Result
+            $stdEvent, $errorEvent | VerboseOutput
+
+            # output
+            return GetCommandResult -Process $process -StandardStringBuilder $stdSb -ErrorStringBuilder $errorSb
+        }
+        finally
+        {
+            if ($null -ne $process){ $process.Dispose() }
+            if ($null -ne $stdEvent)
+            {
+                Unregister-Event -SourceIdentifier $stdEvent.Name
+                $stdEvent.Dispose()
+            }
+            if ($null -ne $errorEvent)
+            {
+                Unregister-Event -SourceIdentifier $errorEvent.Name
+                $errorEvent.Dispose()
+            }
+        }
+    }
+
+    begin
+    {
+        # Prerequisites       
+        $stdSb = New-Object -TypeName System.Text.StringBuilder
+        $errorSb = New-Object -TypeName System.Text.StringBuilder
+        $scripBlock = 
+        {
+            if (-not [String]::IsNullOrEmpty($EventArgs.Data))
+            {
+                        
+                $Event.MessageData.AppendLine($Event.SourceEventArgs.Data)
+            }
+        }
+
+        function NewProcess ([string]$FileName, [string]$Arguments, [string]$WorkingDirectory)
+        {
+            "Execute command : '{0} {1}', WorkingSpace '{2}'" -f $FileName, $Arguments, $WorkingDirectory | VerboseOutput
+            # ProcessStartInfo
+            $psi = New-object System.Diagnostics.ProcessStartInfo 
+            $psi.CreateNoWindow = $true
+            $psi.LoadUserProfile = $true
+            $psi.UseShellExecute = $false
+            $psi.RedirectStandardOutput = $true
+            $psi.RedirectStandardError = $true
+            $psi.FileName = $FileName
+            $psi.Arguments+= $Arguments
+            $psi.WorkingDirectory = $WorkingDirectory
+
+            # Set Process
+            $process = New-Object System.Diagnostics.Process 
+            $process.StartInfo = $psi
+            return $process
+        }
+
+        function WaitProcessComplete ([System.Diagnostics.Process]$Process, [int]$TimeoutMS)
+        {
+            "Waiting for command complete. It will Timeout in {0}ms" -f $TimeoutMS | VerboseOutput
+            $isComplete = $Process.WaitForExit($TimeoutMS)
+            if (-not $isComplete)
+            {
+                "Timeout detected for {0}ms. Kill process immediately" -f $timeoutMS | VerboseOutput
+                $Process.Kill()
+                $Process.CancelOutputRead()
+                $Process.CancelErrorRead()
+            }
+        }
+
+        function GetCommandResult ([System.Diagnostics.Process]$Process, [System.Text.StringBuilder]$StandardStringBuilder, [System.Text.StringBuilder]$ErrorStringBuilder)
+        {
+            'Get command result string.' | VerboseOutput
+            return [PSCustomObject]@{
+                StandardOutput = $StandardStringBuilder.ToString()
+                ErrorOutput = $ErrorStringBuilder.ToString()
+                ExitCode = $process.ExitCode
+            }
+        }
+
+        filter VerboseOutput
+        {
+            #$_ | Out-String -Stream | Write-Verbose
+        }
+    }
+}
+
+# Fat horrible wrapper around plink
 Function Invoke-Ssh {
     [Cmdletbinding()]
     Param(
@@ -496,117 +620,30 @@ Function Invoke-Ssh {
         # The Machine identifer we'll tag the result with
         [Parameter(Mandatory=$True)]
         [ValidateScript({$_ -Match "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"})]
-        [String]$MachineIdentifier
+        [String]$MachineIdentifier,
+        
+        # The Root path to the solution
+        [Parameter(Mandatory=$True)]
+        [ValidateNotNullOrEmpty()]
+        [String]$RootPath
     )
     
     # Set EAP
     $ErrorActionPreference = "Stop";
-    
-    # Work out the authentication mechansim
-    $AuthenticationMethod = $(
-        if ($Username -and $PrivateKeyFilePath -and $PrivateKeyPassphrase) {
-            "PrivateKeyWithPassphrase";
-        } elseif ($Username -and $PrivateKeyFilePath) {
-            "PrivateKey";
-        } else {
-            "Password";
-        }
-    );
 
-    # Wrap the ssh connection in a Process so we can write to stdin
-    $ProcessStartInfo = New-Object System.Diagnostics.ProcessStartInfo;
-    $Process = New-Object System.Diagnostics.Process;
-    
-    # Set the startinfo object properties and set the process to use this startinfo
-    $ProcessStartInfo.FileName = $($env:windir + "\System32\cmd.exe");
-    $ProcessStartInfo.CreateNoWindow = $True;
-    $ProcessStartInfo.UseShellExecute = $False;
-    $ProcessStartInfo.RedirectStandardOutput = $True;
-    $ProcessStartInfo.RedirectStandardInput = $True;
-    $ProcessStartInfo.RedirectStandardError = $True;
-    $Process.StartInfo = $ProcessStartInfo;
-    
-    # Start the process
-    [Void]($Process.Start());
-    
-    # We need to switch here dependent on the connection method
-    Switch -Regex ($AuthenticationMethod) {
-        "Password" {
-            $Cmd = "plink -ssh $Target -P 22 -l $Username -pw $Password -m $ScriptPath";
-        }
-        "PrivateKey*" {
-            $Cmd = "plink -ssh $Target -P 22 -l $Username -i $PrivateKeyFilePath -m $ScriptPath";
-        }
+    # Build the SshClient root path
+    $SshClientPath = [String]::Format("{0}\SshClient\win-ssh-client.exe", $RootPath);
+
+    # Exec the shell
+    $SshResult = & $SshClientPath -t $Target -u $Username -p $Password -s $ScriptPath
+
+    # Check the last exit code
+    if ($LASTEXITCODE -gt 0) {
+        throw $SshResult;
+    } else {
+        return $SshResult;
     }
 
-    # Exec the cmd
-    $Process.StandardInput.Write($Cmd + [System.Environment]::NewLine);
-
-    # Check and see whether stderr has asked for the host key
-    if ($Process.StandardError.ReadLineAsync().Result -like "*The server's host key is not cached in the registry.*") {
-        Start-Sleep -Seconds 1;
-        $Process.StandardInput.Write("yes" + [System.Environment]::NewLine);
-    }
-
-    # Wait for 2 seconds and write the private key passphrase to stdin if required
-    if ($AuthenticationMethod -eq "PrivateKeyWithPassphrase") {
-        Start-Sleep -Seconds 2;
-        $Process.StandardInput.Write($PrivateKeyPassphrase + [System.Environment]::NewLine);
-    }
-
-    # Close stdin now we're done with it
-    $Process.StandardInput.Close();
-    
-    # Block the exit until completion
-    $Process.WaitForExit();
-    
-    # Grab stderr, stdout and exit code in case we need to throw
-    $Stderr = $Process.StandardError.ReadToEnd();
-    $Stdout = $Process.StandardOutput.ReadToEnd();
-    $Status = $Process.ExitCode;
-
-    # Parse stderr and remove the trash
-    $ParsedStderr = $($Stderr | ?{
-        $_ -notlike "*The server's host key is not cached in the registry.*" -and
-        $_ -notlike "*have no guarantee that the server is the computer you*" -and
-        $_ -notlike "*think it is.*" -and
-        $_ -notlike "*The server's ssh* key fingerprint is:*" -and
-        $_ -notlike "*ssh-*" -and
-        $_ -notlike "*If you trust this host, enter*" -and
-        $_ -notlike "*PuTTY's cache and carry on connecting.*" -and
-        $_ -notlike "*If you want to carry on connecting just once, without*" -and
-        $_ -notlike "*adding the key to the cache, enter*" -and
-        $_ -notlike "*If you do not trust this host, press Return to abandon the*" -and
-        $_ -notlike "*connection.*" -and
-        $_ -notlike "*Store key in cache? (y/n)*"
-    }) -Join " ";
-    
-    # Check our results first
-    if (![String]::IsNullOrEmpty($ParsedStderr) -or $Status -gt 0) {
-        throw "SSH Connection failed with exception: $ParsedStderr";
-    }
-    
-    # Process the result
-    $StartIndex = $Stdout.IndexOf("{");
-    $EndIndex = $Stdout.LastIndexOf("}") - $StartIndex + 1;
-    $Result = $Stdout.Substring($StartIndex,$EndIndex);
-
-    # Clear up the trash
-    $Process.Close();
-    $Process.Dispose();
-
-    # Clean up the result
-    try {
-        $Parsed = $Result | ConvertFrom-Json;
-    } catch {
-        throw "Unable to deserialise Json from SSH target with exception: $($_.Exception.Message)";
-    }
-    
-    # Add the machine identifier
-    $Parsed.MachineIdentifier = $MachineIdentifier;
-    
-    # And return
-    return $Parsed;
 }
 
 # Returns an array of audit sections based on params

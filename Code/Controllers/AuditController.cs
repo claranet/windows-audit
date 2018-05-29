@@ -191,8 +191,11 @@ namespace claranet_audit.Controllers
             // Enumerate the lines in the CSV and add them to the Hosts cache
             foreach (string line in CsvLines)
             {
+                // Replace all the quotes
+                string sline = line.Replace("\"","");
+
                 // Split the line
-                string[] Properties = line.Split(',');
+                string[] Properties = sline.Split(',');
 
                 // Ok we need to make a decision here whether it's a host or cidr block
                 if (Properties[0].Contains("/"))
@@ -557,7 +560,7 @@ namespace claranet_audit.Controllers
                 ).ToList();
 
                 // Serialise the hosts and credentials
-                string HostsJson = JsonConvert.SerializeObject(HostsToInclude);
+                string HostsJson = JsonConvert.SerializeObject(AuditController.HostsCache);
                 string CredentialsJson = JsonConvert.SerializeObject(AuditController.CredentialsCache);
 
                 // Write the data to disk because passing in would be too long

@@ -88,6 +88,11 @@ $RegProvider.EnumKey($HKLM,$UKey).sNames | %{
                 $IsEmpty = $False;
             }
 
+            # Sanitise the value for dodgy 0xFFFF character
+            if ($PropertyValue -match [Char]0xFFFF) {
+                $PropertyValue = $PropertyValue -replace [Char]0xFFFF,'';
+            }
+
             # Add the new property to the Application
             $Application | Add-Member -MemberType NoteProperty -Name $PropertyName -Value $PropertyValue;
         }

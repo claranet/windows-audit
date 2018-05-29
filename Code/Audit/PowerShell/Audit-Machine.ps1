@@ -144,7 +144,8 @@ while ($AuditSections.Where({$_.RetryCount -le 3 -and $_.Completed -eq $False}).
                                 -Username $C.Username `
                                 -Password $C.Password `
                                 -ScriptPath $CurrentSection.Script `
-                                -MachineIdentifier $Target.ID;
+                                -MachineIdentifier $Target.ID `
+                                -RootPath $RootDirectory;
                         }
                         "Linux/Unix Private Key file" {
                             Invoke-Ssh `
@@ -152,7 +153,8 @@ while ($AuditSections.Where({$_.RetryCount -le 3 -and $_.Completed -eq $False}).
                                 -Username $C.Username `
                                 -PrivateKeyFilePath $C.PrivateKeyFilePath `
                                 -ScriptPath $CurrentSection.Script `
-                                -MachineIdentifier $Target.ID;
+                                -MachineIdentifier $Target.ID `
+                                -RootPath $RootDirectory;
                         }
                         "Linux/Unix Private Key file with Passphrase" {
                             Invoke-Ssh `
@@ -161,12 +163,13 @@ while ($AuditSections.Where({$_.RetryCount -le 3 -and $_.Completed -eq $False}).
                                 -PrivateKeyFilePath $C.PrivateKeyFilePath `
                                 -PrivateKeyPassphrase $C.PrivateKeyPassphrase `
                                 -ScriptPath $CurrentSection.Script `
-                                -MachineIdentifier $Target.ID;
+                                -MachineIdentifier $Target.ID `
+                                -RootPath $RootDirectory;
                         }
                     });
 
                     # Add our data to the audit section
-                    $CurrentSection.Data = $SshData | ConvertFrom-Json -ErrorAction SilentlyContinue;
+                    $CurrentSection.Data = $SshData;
 
                     # Set the current section to completed
                     $CurrentSection.Completed = $True;

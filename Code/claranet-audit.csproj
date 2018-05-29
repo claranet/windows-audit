@@ -17,7 +17,9 @@
 
   <!-- Copy supporting files to publish output on build -->
   <ItemGroup>
-    <Content Include="Audit\**\*" CopyToPublishDirectory="Always" />
+    <Content Include="Audit\**\*" CopyToPublishDirectory="PreserveNewest" />
+    <Content Remove="Audit\SshClient\win-ssh-client.deps.json" CopyToPublishDirectory="Never" />
+    <Content Remove="Audit\SshClient\win-ssh-client.runtimeconfig.json" CopyToPublishDirectory="Never" />
   </ItemGroup>
 
 </Project>
